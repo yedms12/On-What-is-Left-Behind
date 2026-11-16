@@ -479,7 +479,7 @@ function makeCard(item){
   el.className = 'card' + (item.type==='quote'?' quote':'');
   const inner = document.createElement('div'); inner.className='inner';
   if(item.type==='img'){
-    const img = new Image(); img.src = 'img/t/'+item.f;   // 캔버스엔 가벼운 썸네일(img/t), 패널엔 원본(img) img.alt = item.label; img.loading='eager'; img.decoding='async';
+    const img = new Image(); img.src = item.f;   // 이미지 파일은 index.html과 같은 위치(저장소 맨 위)에 있습니다 img.alt = item.label; img.loading='eager'; img.decoding='async';
     inner.appendChild(img);
   } else {
     const p = document.createElement('p'); p.textContent = item.text; inner.appendChild(p);
@@ -769,7 +769,7 @@ function renderPanel(c){
   const P=list[pIdx];
   document.getElementById('pTag').innerHTML=`<span>${E.no}</span><span>${E.date}</span><span>${E.en}</span>`;
   const fig = c.type==='img'
-    ? `<div class="fig"><img src="img/${c.f}" alt=""><div class="cap">${c.label}</div></div>`
+    ? `<div class="fig"><img src="${c.f}" alt=""><div class="cap">${c.label}</div></div>`
     : `<div class="fig"><p style="font-family:var(--mono);font-size:13px;line-height:1.6">${esc(c.text)}</p><div class="cap">${c.label}</div></div>`;
   const head = tab==='online'
     ? `<p class="who"><b>온라인 증언</b> — 생존자·유가족·현장에 있던 사람들이 공개적으로 남긴 말</p>`
