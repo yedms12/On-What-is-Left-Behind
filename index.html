@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>남겨진 것들 — Interview Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eceef0; --paper:#f8f9fa; --ink:#121314; --ink2:#46494d; --ink3:#8a8e93;
+  --line:#d7dade; --grid:#e0e3e6; --arc:#b8bcc1;
+  --sans:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --panel:min(780px,44vw);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit}
+
+/* ---------- canvas ---------- */
+#stage{position:fixed;inset:0;cursor:grab;touch-action:none;
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);}
+#stage.drag{cursor:grabbing}
+#world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+#arc{position:absolute;overflow:visible;pointer-events:none}
+.node-label{position:absolute;font-family:var(--mono);font-size:14px;letter-spacing:.02em;color:var(--ink2);white-space:nowrap;pointer-events:none;transform:translate(14px,-50%)}
+.node-label b{display:block;font-family:var(--sans);font-weight:700;font-size:30px;color:var(--ink);letter-spacing:-.01em;margin-top:4px}
+
+.card{position:absolute;will-change:transform;transition:opacity .6s ease, filter .6s ease}
+.card .inner{background:var(--paper);padding:6px 6px 0;border:1px solid var(--line);transform-origin:50% 50%;
+  transition:box-shadow .35s ease,border-color .35s ease;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.card img{display:block;width:100%;height:auto;pointer-events:none;user-select:none;-webkit-user-drag:none;filter:grayscale(1)}
+.card .cap{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;line-height:1;color:var(--ink2);padding:7px 1px 7px;white-space:nowrap;overflow:hidden}
+.card .cap i{flex:none;width:7px;height:7px;border:1px solid var(--ink2);display:inline-block}
+.card.quote .inner{padding:12px 13px 0;background:#fff}
+.card.quote p{font-family:var(--mono);font-size:14px;line-height:1.55;color:var(--ink);letter-spacing:-.01em}
+.card.hover .inner{border-color:var(--ink);box-shadow:0 18px 40px -18px rgba(0,0,0,.35)}
+.card.hover .cap i{background:var(--ink)}
+.card.dim{opacity:.07;pointer-events:none;filter:blur(1px)}
+.card.active .inner{border-color:var(--ink);outline:1px solid var(--ink)}
+body.hovering .card:not(.hover):not(.dim){opacity:.72}
+
+/* ---------- top-left intro ---------- */
+#intro{position:fixed;left:28px;top:28px;width:440px;z-index:20;display:flex;flex-direction:column;gap:12px}
+.box{background:var(--paper);border:1px solid var(--line)}
+#brand{display:flex;justify-content:space-between;align-items:stretch}
+#brand h1{font-size:28px;font-weight:700;letter-spacing:-.02em;padding:14px 18px 13px;line-height:1}
+#brand h1 small{display:block;font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.04em;color:var(--ink2);margin-top:9px}
+#introToggle{border-left:1px solid var(--line);width:46px;font-family:var(--mono);font-size:16px}
+#introBody{padding:18px 18px 20px;transition:opacity .3s}
+#introBody .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink2);text-transform:uppercase;margin-bottom:12px}
+#introBody .lead{font-size:16.5px;line-height:1.62;letter-spacing:-.015em}
+#introBody .role{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.7;color:var(--ink2)}
+#introBody .how{margin-top:14px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink3)}
+#intro.collapsed #introBody{display:none}
+
+/* filter dropdown (reference: select box) */
+#filter{position:relative}
+#filterBtn{width:100%;display:flex;justify-content:space-between;align-items:center;padding:13px 18px;font-size:14px;font-weight:500;letter-spacing:-.01em}
+#filterBtn span.mono{font-family:var(--mono);font-size:11px;color:var(--ink2);font-weight:400}
+#filterBtn .tri{font-size:10px;margin-left:10px;transition:transform .25s}
+#filter.open .tri{transform:rotate(180deg)}
+#filterList{display:none;border-top:1px solid var(--line)}
+#filter.open #filterList{display:block}
+#filterList button{width:100%;display:flex;justify-content:space-between;align-items:baseline;padding:11px 18px;text-align:left;font-size:14px;border-bottom:1px solid var(--line)}
+#filterList button:last-child{border-bottom:0}
+#filterList button:hover,#filterList button.on{background:var(--ink);color:var(--paper)}
+#filterList button em{font-style:normal;font-family:var(--mono);font-size:11px;opacity:.7}
+
+/* ---------- top-right menu ---------- */
+#menu{position:fixed;right:28px;top:28px;z-index:30;display:flex;gap:8px;align-items:flex-start}
+#menu .mbtn{background:var(--paper);border:1px solid var(--line);height:44px;padding:0 16px;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+#menu .mbtn:hover,#menu .mbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+#links{position:absolute;right:0;top:52px;width:760px;display:none;grid-template-columns:repeat(3,1fr)}
+#menu.open #links{display:grid}
+#links .col{padding:18px 18px 16px;border-right:1px solid var(--line)}
+#links .col:last-child{border-right:0}
+#links .col h3{font-size:15px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+#links .col .d{font-family:var(--mono);font-size:10.5px;color:var(--ink2);margin:6px 0 14px}
+#links a{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;text-decoration:none;line-height:1.35}
+#links a:hover{text-decoration:underline}
+#links a span{font-family:var(--mono);font-size:11px;flex:none}
+
+/* ---------- bottom controls ---------- */
+#zoom{position:fixed;left:28px;bottom:28px;z-index:20;display:flex;flex-direction:row;align-items:center;gap:0}
+#zoom .zb{width:36px;height:36px;background:var(--paper);border:1px solid var(--line);font-family:var(--mono);font-size:15px;display:flex;align-items:center;justify-content:center}
+#zoom .zb:hover{background:var(--ink);color:var(--paper)}
+#zoomTrack{position:relative;width:240px;height:36px;background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line);cursor:pointer;touch-action:none}
+#zoomTrack::before{content:"";position:absolute;top:50%;left:12px;right:12px;height:1px;background:var(--line)}
+#zoomKnob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--ink);transform:translate(-50%,-50%)}
+#zoom #zFull{margin-right:8px}
+#status{position:fixed;right:28px;bottom:28px;z-index:20;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink2);text-align:right;line-height:1.7}
+
+/* ---------- interview panel ---------- */
+#panel{position:fixed;top:0;right:0;bottom:0;width:var(--panel);background:var(--paper);border-left:1px solid var(--ink);z-index:40;
+  transform:translateX(102%);transition:transform .55s cubic-bezier(.2,.7,.1,1);display:flex;flex-direction:column}
+#panel.open{transform:none}
+#pHead{display:flex;align-items:stretch;border-bottom:1px solid var(--line);flex:none}
+#pHead .tag{padding:16px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;flex:1;display:flex;align-items:center;gap:14px}
+#pHead button{width:56px;border-left:1px solid var(--line);font-size:22px;font-weight:300}
+#pHead button:hover{background:var(--ink);color:var(--paper)}
+#pScroll{overflow-y:auto;flex:1;scroll-behavior:smooth}
+#pScroll::-webkit-scrollbar{width:6px}#pScroll::-webkit-scrollbar-thumb{background:var(--line)}
+.pTop{display:grid;grid-template-columns:1fr 260px;gap:0;border-bottom:1px solid var(--line)}
+.pTop .t{padding:28px 26px 26px}
+.pTop .num{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.pTop h2{font-size:34px;line-height:1.15;letter-spacing:-.03em;font-weight:700;margin:10px 0 6px}
+.pTop .en{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.pTop .who{margin-top:22px;font-size:13.5px;line-height:1.7;color:var(--ink2)}
+.pTop .who b{color:var(--ink);font-weight:700}
+.pTop .fig{border-left:1px solid var(--line);padding:16px;display:flex;flex-direction:column;justify-content:center;background:#fff}
+.pTop .fig img{width:100%;max-height:300px;object-fit:contain;filter:grayscale(1)}
+.pTop .fig .cap{font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:10px}
+.tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:2}
+.tabs button{padding:13px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-right:1px solid var(--line);color:var(--ink3)}
+.tabs button.on{color:var(--ink);background:#fff;box-shadow:inset 0 -2px 0 var(--ink)}
+.qa{padding:26px 26px 6px 26px;border-bottom:1px solid var(--line);position:relative;transition:background .6s}
+.qa::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ink);transform:scaleY(0);transform-origin:top;transition:transform .6s}
+.qa.mark{background:#fff}
+.qa.mark::before{transform:none}
+.qa .q{display:grid;grid-template-columns:60px 1fr;gap:0;font-size:17px;font-weight:700;letter-spacing:-.02em;line-height:1.45;margin-bottom:14px}
+.qa .q span{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--ink2);padding-top:4px}
+.qa .a{padding-left:60px;font-size:15.5px;line-height:1.85;letter-spacing:-.012em;color:#25272a;margin-bottom:20px}
+.qa .a p+p{margin-top:12px}
+.qa .f{margin:4px 0 22px 60px;padding:16px 0 0 18px;border-left:1px solid var(--ink)}
+.qa .f .fq{font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--ink2);margin-bottom:10px}
+.qa .f .fq::before{content:"→  ";color:var(--ink)}
+.vmark{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid var(--ink3);font-family:var(--mono);font-size:10px;color:var(--ink3);vertical-align:1px}
+.online .item{border-top:1px solid var(--line);padding:22px 0 24px}
+.online .item .qq{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.45}
+.online .item .dd{margin-top:10px;font-size:14.5px;line-height:1.8;color:#383b3e}
+.online .item .ss{margin-top:12px;font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink2)}
+.online .item .ss a{color:var(--ink);text-underline-offset:3px}
+.tabs{overflow-x:auto}.tabs button{white-space:nowrap}
+#links a small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-top:3px}
+.qa .f .a{padding-left:0;margin-bottom:6px}
+.online{padding:26px}
+.online .src{font-family:var(--mono);font-size:11px;color:var(--ink2);margin-bottom:20px;line-height:1.6}
+.online blockquote{border-top:1px solid var(--line);padding:20px 0 22px;font-size:15px;line-height:1.85;letter-spacing:-.012em}
+.online blockquote cite{display:block;margin-top:10px;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.pFoot{padding:22px 26px 40px;display:flex;flex-direction:column;gap:12px}
+.pFoot h4{font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.pFoot .ls{display:flex;flex-wrap:wrap;gap:8px}
+.pFoot a{border:1px solid var(--ink);padding:8px 12px;font-size:12.5px;text-decoration:none}
+.pFoot a:hover{background:var(--ink);color:var(--paper)}
+#pNav{display:flex;border-top:1px solid var(--line);flex:none}
+#pNav button{flex:1;padding:15px 0;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+#pNav button+button{border-left:1px solid var(--line)}
+#pNav button:hover{background:var(--ink);color:var(--paper)}
+
+#hint{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:15;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink2);background:var(--paper);border:1px solid var(--line);padding:9px 14px;transition:opacity .8s;pointer-events:none}
+body.panel-open #hint{opacity:0}
+</style>
+</head>
+<body>
+
+<div id="stage"><div id="world"><svg id="arc"></svg></div></div>
+
+<!-- top-left: project + filter -->
+<aside id="intro">
+  <div id="brand" class="box">
+    <h1>남겨진 것들<small>ON WHAT IS LEFT BEHIND — INTERVIEW ARCHIVE</small></h1>
+    <button id="introToggle" aria-label="소개 접기">–</button>
+  </div>
+  <div id="introBody" class="box">
+    <div class="eyebrow">Project — 프롤로그</div>
+    <p class="lead">사고 이후 시스템은 ‘재발 방지’라는 명목으로 새로운 규칙과 문장을 생성한다. 그 과정에서 개인이 겪은 사건의 폭력성과 고유한 흔적은 점차 소거된다. 어떤 사건은 규칙으로 남고, 어떤 사건은 사람으로 남으며, 어떤 사건은 기억되지 않은 채 사라진다.</p>
+    <p class="role">『남겨진 것들』의 인터뷰 아카이브입니다.<br>삼풍백화점 붕괴 사고(1995), 세월호 참사(2014), 10·29 이태원 참사(2022)를 각기 다른 거리에서 지나온 아홉 사람의 기억을 이미지 조각들<br>사이에 흩어 두었습니다. 조각을 누르면 인터뷰 내용을 확인할 수 있으며,<br>사건마다 생존자·유가족이 공개적으로 남긴 증언도 함께 읽을 수 있습니다.</p>
+    <p class="how">DRAG — 탐색 · SCROLL — 확대/축소 · CLICK — 인터뷰 열기</p>
+  </div>
+  <div id="filter" class="box">
+    <button id="filterBtn"><span id="filterLabel">전체</span><span><span class="mono" id="filterCount"></span><span class="tri">▼</span></span></button>
+    <div id="filterList"></div>
+  </div>
+</aside>
+
+<!-- top-right: related sites -->
+<nav id="menu">
+  <button class="mbtn" id="fitBtn" title="전체 보기 (0)">Overview</button>
+  <button class="mbtn" id="linksBtn">관련 사이트 <span>↗</span></button>
+  <div id="links" class="box"></div>
+</nav>
+
+<!-- bottom-left: fullscreen + zoom (horizontal) -->
+<div id="zoom">
+  <button class="zb" id="zFull" title="전체 화면 (F)">⛶</button>
+  <button class="zb" id="zOut" aria-label="축소">−</button>
+  <div id="zoomTrack"><div id="zoomKnob"></div></div>
+  <button class="zb" id="zIn" aria-label="확대">+</button>
+</div>
+<div id="status"></div>
+<div id="hint">이미지를 눌러 인터뷰를 열어 보세요</div>
+
+<!-- interview panel -->
+<section id="panel" aria-hidden="true">
+  <div id="pHead"><div class="tag" id="pTag"></div><button id="pClose" aria-label="닫기">×</button></div>
+  <div id="pScroll"></div>
+  <div id="pNav"><button id="pPrev">← 이전 조각</button><button id="pNext">다음 조각 →</button></div>
+</section>
+
+<script>
+/* =========================================================
+   DATA — 사건 · 관련 사이트 · 인터뷰 (여기만 고치면 내용이 바뀝니다)
+   ========================================================= */
+/* 가상(재구성) 인터뷰이 표시 — 화면에 작게 '재구성 인터뷰'가 붙습니다. 숨기려면 false */
+const SHOW_VIRTUAL_MARK = true;
+
+const EVENTS = {
+  s:{no:'#1', name:'삼풍백화점 붕괴 사고', en:'Sampoong Dept. Store Collapse', date:'1995.06.29', count:'502',
+     links:[
+       ['서울기록원','https://archives.seoul.go.kr/','서울시 공공기록 아카이브'],
+       ['국가기록원','https://www.archives.go.kr/','국가 기록물 아카이브'],
+       ['서울문화재단 — 메모리[人]서울프로젝트','https://www.sfac.or.kr/','삼풍 구술 기억 수집 사업'],
+     ]},
+  w:{no:'#2', name:'세월호 참사', en:'Sewol Ferry Disaster', date:'2014.04.16', count:'304',
+     links:[
+       ['4.16 기억저장소','http://www.416memory.org/','기록 아카이브 · 4.16기억교실'],
+       ['4.16세월호참사가족협의회','https://416family.org/','유가족 단체'],
+       ['4.16재단','https://416foundation.org/','유가족과 시민이 세운 재단'],
+     ]},
+  i:{no:'#3', name:'10·29 이태원 참사', en:'Seoul Halloween Crowd Crush', date:'2022.10.29', count:'159',
+     links:[
+       ['10.29 이태원 참사 유가족협의회','https://1029itaewonfamily.org/','유가족 단체'],
+       ['10.29 이태원 참사 시민대책회의','https://www.1029act.net/','기록 · 추모메시지 아카이브'],
+     ]},
+};
+
+/* 이미지 → [인터뷰이 a/b/c] : [질문 id] */
+const IMAGE_Q = {};   // (예전 책 캡처용 — 지금은 IMAGES의 ref를 씁니다)
+
+/* 캔버스에 흩어질 인터뷰 문장 [사건, 문장, '인터뷰이:질문'] */
+const QUOTES = [
+ ['s','이유가 없어요. 그냥 그날 그쪽으로 안 갔을 뿐이에요.','a:last'],
+ ['s','들어서면 천장을 보게 되더라고요.','a:q6'],
+ ['s','502명인데. 502명이면 엄청나게 많은 숫자인데.','a:q5f'],
+ ['s','“아빠 왜 항상 안에 들어가기 전에 잠깐 서 있어?”','a:q6f'],
+ ['s','저 문장이 왜 생겼을까.','a:q7'],
+ ['s','모르고 있었다는 게 좀 부끄럽네요.','a:q8f'],
+ ['s','그날 밤은 헬기 소리로 기억해요.','b:q3'],
+ ['s','지금도 집을 볼 때 준공 연도부터 봐요.','b:q6'],
+ ['s','저는 그 사건을 단면도로 먼저 배웠어요.','c:q2'],
+ ['s','도면에서 기둥 하나 지울 때 손이 멈춰요.','c:q6'],
+ ['w','조용한 게 무서운 게 됐어요. 그때부터.','a:q3f'],
+ ['w','이름 304개를 외우는 게 기억하는 방법인지도 모르겠고.','a:q5f'],
+ ['w','단어가 사라졌는데 그게 자연스러운 게.','a:q7'],
+ ['w','시간이 다르게 흐르는 것 같아요. 제 시간이랑 그분들 시간이.','a:q8f'],
+ ['w','그 동시성이 불편해요.','a:last'],
+ ['w','이제는 귀가 열려요. 어디에 구명조끼가 있는지.','a:q6'],
+ ['w','“가만히 있어”라는 말을 못 하게 됐어요.','b:q6f'],
+ ['w','그 자막을 봤을 때, 저는 안심했어요.','b:q2f'],
+ ['w','뜻도 모르고 가방에 달고 다녔어요.','c:q3'],
+ ['w','제 기억이라기보다는 물려받은 기억 같아요.','c:last'],
+ ['i','그 몇 분이 몸에 남아 있는 것 같아요.','a:q2f'],
+ ['i','화면이 더 작은데 더 가까웠어요.','a:q4'],
+ ['i','영상은 기억하는데 사람은 기억 못 하는.','a:q5f'],
+ ['i','들어가면 일단 나가는 방향을 봐요.','a:q6'],
+ ['i','이름도 없이 2년이 지났다는 게.','a:q7'],
+ ['i','어떤 거리를 두고 있는 것 같아요.','a:last'],
+ ['i','그 32분 동안 저는 아무것도 못 했어요.','b:q2f'],
+ ['i','“엄마, 그건 우리 잘못이 아니잖아.”','b:q6f'],
+ ['i','“우리 안 가길 잘했다.” 그 말이 제일 오래 남아요.','c:q2f'],
+ ['i','옷장 안에 아직 그 옷이 있어요.','c:q3'],
+];
+
+/* 추가 인터뷰이 (가상 · 재구성) */
+const EXTRA = {
+ s:[
+  {name:'최○○', virtual:true,
+   who:'<b>최○○</b> — 1995년 당시 15세, 중학교 2학년. 삼풍백화점에서 걸어서 10분 거리의 아파트에 살았음. 어머니가 백화점 식품관을 자주 이용함. 현재 46세.',
+   qa:[
+    {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['중2였어요. 6월 말이면 기말고사 기간이라 학교 끝나면 바로 학원 가고 그랬어요. 그 동네가 다 그랬어요. 학원, 집, 학원.','삼풍은 그냥 동네였어요. 엄마가 저녁 장을 거기 지하에서 보셨거든요. 저도 따라가면 시식 코너 돌고. 백화점이라기보다는 큰 슈퍼 같은 느낌이었어요, 저한테는.']},
+    {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['학원 가는 길이었어요. 사이렌이 한꺼번에 막 울리는데 한두 대가 아니었어요. 그리고 하늘에 헬기가 떴고. 사람들이 다 한쪽으로 뛰어가더라고요.','저는 그냥 집으로 뛰었어요. 엄마가 그 시간에 장 보러 가시는 날이 많았으니까. 집 전화로 계속 전화를 했는데 아무도 안 받았어요.'],
+     f:{id:'q2f',q:'집 전화를 계속 거셨다고 했는데, 그 시간은 어떻게 기억나세요?',a:['한 시간 조금 넘었던 것 같아요. 그때는 핸드폰이 없으니까 방법이 그것밖에 없었어요. 수화기 들고, 끊고, 다시 걸고. 신호음만 계속 갔어요.','엄마는 그날 친구분 댁에 계셨어요. 그날따라. 저녁에 들어오셔서 저를 보시고는 아무 말도 안 하고 한참 안고 계셨어요. 그때 엄마 손이 떨렸던 게 기억나요.']}},
+    {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['그날 밤은 헬기 소리로 기억해요. 밤새 안 그쳤어요. 창문을 닫아도 들렸어요. 그리고 다음 날 아침에 창문을 열었는데 먼지 냄새 같은 게 났어요. 그게 진짜였는지는 모르겠어요. 그런 것 같았어요.','등굣길에 경찰이 길을 막고 있었어요. 돌아서 가야 했어요. 학교에서는 아무도 그 얘기를 크게 안 했어요. 그냥 다들 조용했어요.']},
+    {id:'q4',q:'그 장면들이 어디서 온 건지 알 수 있으세요?',a:['소리는 제 거예요. 그건 확실해요. 근데 무너진 건물 모습은 TV로 봤어요. 실제로 가까이 가 본 적은 없어요. 엄마가 그쪽으로 못 가게 하셨거든요. 한동안은 그 길로 안 다녔어요, 우리 가족 전부.']},
+    {id:'q5',q:'기억나지 않는 부분이 있나요?',a:['그 자리가 어떻게 변했는지요. 한참 동안 공터였던 것 같은데, 언제 아파트가 올라갔는지는 기억이 없어요. 어느 날 보니까 높은 건물이 있었어요. 그게 거기라는 걸 한참 동안 연결을 못 했어요.','매일 지나다니던 동네인데 그 변화를 못 봤다는 게 이상해요.']},
+    {id:'q6',q:'사건 이후로 일상에서 달라진 게 있었나요?',a:['엄마가 그 뒤로 백화점을 거의 안 가셨어요. 다른 데도요. 시장을 가셨어요. 이유를 말씀하신 적은 없어요.','저는 지금도 집을 볼 때 준공 연도부터 봐요. 몇 년도에 지어졌는지. 부동산 사장님이 이상하게 보시는데, 그게 제일 먼저 궁금해요.'],
+     f:{id:'q6f',q:'준공 연도를 먼저 본다는 건, 본인한테 어떤 의미예요?',a:['저도 정확히는 모르겠어요. 숫자를 보면 뭔가 확인한 것 같은 기분이 들어요. 사실 연도로 알 수 있는 건 별로 없다는 거 알아요. 근데 그거라도 보는 거예요. 아무것도 안 보면 불안하니까.']}},
+    {id:'q8',q:'희생자나 유가족에 대해서는 어떻게 기억하고 있어요?',a:['같은 동네였는데도 잘 몰라요. 그때 어른들이 그 얘기를 아이들 앞에서 잘 안 했어요. 보호하려고 그랬던 것 같은데, 그래서 저한테는 사람보다 소리가 남았어요.','위령탑이 그 자리가 아니라 다른 데 있다는 걸 커서 알았어요. 그게 좀 이상했어요. 그 자리에는 아무것도 없고.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['엄마 손이 떨렸던 거요. 그게 계속 생각나요. 저는 그날 아무 일도 없었던 사람인데, 그 동네에 산다는 것만으로 뭔가가 남았어요. 그걸 뭐라고 불러야 할지 아직도 모르겠어요.']},
+   ]},
+  {name:'정○○', virtual:true,
+   who:'<b>정○○</b> — 1999년생. 사고 이후에 태어남. 건축공학을 전공하고 구조설계 사무소에서 일하는 2년 차 엔지니어. 현재 27세.',
+   qa:[
+    {id:'q1',q:'이 사건을 처음 알게 된 건 언제였어요?',a:['저는 태어나기도 전이에요. 처음 제대로 안 건 대학교 구조 수업이었어요. 교수님이 무너진 건물 사진을 띄워 놓고 \'왜 무너졌는지 설명해 보라\'고 하셨어요. 그게 시작이었어요.']},
+    {id:'q2',q:'그때 어떤 장면이 남았어요?',a:['저는 그 사건을 단면도로 먼저 배웠어요. 기둥이랑 슬래브, 화살표. 하중이 어디로 가는지. 기둥 지름이 몇 밀리미터였고, 원래 설계보다 얼마나 줄었고. 숫자가 먼저였어요.','시험에도 나왔어요. 그 문제를 풀었어요. 맞혔어요.'],
+     f:{id:'q2f',q:'사건을 숫자와 도면으로 먼저 배웠다는 게, 지금 생각하면 어떠세요?',a:['그 그림에는 사람이 한 명도 없었어요. 화살표만 있고. 그때는 그게 이상하다고 생각을 못 했어요. 공부니까.','나중에 희생자가 502명이라는 걸 따로 찾아보고 알았어요. 그 숫자는 시험에 안 나왔거든요. 저한테 이 사건은 오랫동안 \'사람이 빠진 사건\'이었던 것 같아요.']}},
+    {id:'q4',q:'그 장면들은 주로 어디서 온 것 같아요?',a:['교재, 논문, 강의 자료요. 그리고 유튜브에서 사고 원인을 분석하는 영상들. 다 원인 이야기예요. 무엇이 잘못됐는지. 거기 누가 있었는지는 거의 안 나와요.']},
+    {id:'q5',q:'기억나지 않는, 혹은 모르는 부분이 있나요?',a:['그 이후요. 무너진 다음에 사람들이 어떻게 찾아졌는지, 가족들이 어디서 기다렸는지. 구조 이야기는 수업에 없었어요. 구조(構造)는 배웠는데 구조(救助)는 안 배운 거죠.']},
+    {id:'q6',q:'이 사건이 지금 하시는 일에 영향을 주나요?',a:['도면에서 기둥 하나 지울 때 손이 멈춰요. 리모델링 같은 거 할 때 \'여기 기둥 빼 주세요\' 요청이 자주 와요. 계산상으로는 문제없을 때도 있어요. 근데 한 번 더 돌려 봐요. 그게 습관이 됐어요.','용도 변경 요청이 오면 특히 그래요. 원래 다른 용도로 지은 건물에 뭔가를 더 올리려고 할 때.']},
+    {id:'q7',q:'관련 규정이나 안전수칙을 일에서 마주칠 때는 어떠세요?',a:['선배가 처음 일 배울 때 그랬어요. \'규정은 다 누가 죽어서 생긴 거다.\' 그때는 그냥 겁주려고 하는 말인 줄 알았어요.'],
+     f:{id:'q7f',q:'그 말이 지금은 어떻게 들리세요?',a:['무거워요. 제가 매일 넘기는 조항들 중에 어떤 게 어느 사고에서 왔는지 저는 다 몰라요. 그냥 \'지켜야 하는 것\'으로만 알고 있어요. 이유는 지워지고 문장만 남은 거죠.','가끔은 각 조항 옆에 그게 어디서 왔는지 적혀 있으면 좋겠다는 생각을 해요. 그러면 좀 다르게 읽힐 것 같아요.']}},
+    {id:'q8',q:'희생자나 유가족에 대해서 생각해 본 적이 있어요?',a:['솔직히 이 인터뷰 전까지는 거의 없어요. 위령탑이 사고 현장이 아니라 다른 곳에 있다는 것도 최근에 알았어요. 현장에는 지금 아파트가 있다는 것도.','건물은 다시 지어지는데 기억은 다른 데로 옮겨지는구나. 그런 생각이 들었어요.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['제가 배운 그 단면도에 사람을 다시 그려 넣어야 할 것 같은 기분이에요. 어떻게 해야 할지는 모르겠어요. 그래도 다음에 그 사진을 보면 화살표 말고 다른 걸 먼저 볼 것 같아요.']},
+   ]},
+ ],
+ w:[
+  {name:'한○○', virtual:true,
+   who:'<b>한○○</b> — 2014년 당시 34세. 경기도의 다른 지역 고등학교 2학년 담임교사. 그해 봄 수학여행 인솔을 준비하고 있었음. 현재 46세.',
+   qa:[
+    {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['2학년 담임이었어요. 그해 봄에 저희 학교도 수학여행이 잡혀 있었어요. 숙소 명단 만들고, 버스 배정하고, 방 배정하고. 애들이 제일 들떠 있을 때였어요.']},
+    {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['교무실 TV요. 오전이었는데 누가 켜 놨어요. 배가 기울었다고. 그리고 얼마 뒤에 \'전원 구조\'라는 자막이 떴어요. 교무실에서 다들 휴, 했어요.','그런데 오후가 되면서 숫자가 달라지기 시작했어요.'],
+     f:{id:'q2f',q:'그 자막을 봤을 때 어떤 마음이었는지 기억나세요?',a:['저는 안심했어요. 그게 제일 마음에 걸려요. 안심하고 수업 들어갔어요. 다음 시간 수업 준비하고.','나중에 그게 사실이 아니었다는 걸 알았을 때, 제가 안심했던 그 몇 시간이 계속 남았어요. 그 시간에 그 아이들은 아직 거기 있었으니까.']}},
+    {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['단원고 선생님들 소식이요. 선생님들도 많이 돌아오지 못하셨잖아요. 그 뉴스를 보면서 저는 계속 제 반 애들 얼굴이 떠올랐어요. 제가 그 자리에 있었으면 어떻게 했을까.','답을 못 내렸어요. 지금도요.']},
+    {id:'q6',q:'사건 이후로 일상에서 달라진 게 있나요?',a:['그해 수학여행은 취소됐어요. 그 뒤로 체험학습 인솔을 가면 인원 점검을 계속 해요. 버스 탈 때, 내릴 때, 밥 먹을 때. 애들이 \'선생님 또 세요?\' 그래요.','배를 탈 일이 있으면 구명조끼 위치부터 확인하고 애들한테 보여 줘요.'],
+     f:{id:'q6f',q:'그 외에 말이나 행동에서 바뀐 게 있나요?',a:['\'가만히 있어\'라는 말을 못 하게 됐어요. 교실에서 정말 자주 쓰는 말이거든요. 조용히 해, 가만히 있어. 그 말이 입에서 나오려고 하면 멈춰요. 다른 말로 바꿔요. \'잠깐 기다려 줄래\' 같은.','애들은 모르죠, 제가 왜 그러는지.']}},
+    {id:'q7',q:'이후 생긴 안전 지침 같은 것들, 학교에서 마주칠 때는 어떠세요?',a:['서류가 정말 많이 늘었어요. 안전교육 시간, 동의서, 계획서, 점검표. 솔직히 처음에는 힘들었어요. 수업 준비할 시간이 줄었으니까.','근데 그 서류 한 장 한 장이 어디서 왔는지 알아요. 그래서 귀찮다는 말을 못 해요. 하지만 서류가 늘었다고 해서 그날 무엇이 잘못됐는지가 밝혀진 건 아니잖아요. 그 사이가 늘 걸려요.']},
+    {id:'q8',q:'유가족에 대해서는 어떻게 기억하고 있어요?',a:['몇 해 전에 4.16기억교실에 한 번 갔어요. 교실이 그대로 옮겨져 있었어요. 책상 위에 꽃이랑 편지가 있고. 칠판도 있고. 교사로서 교실에 들어가는 게 그렇게 어려운 적이 처음이었어요.','그 교실을 지키시는 분들이 유가족분들이라는 걸 거기서 알았어요.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['그 \'전원 구조\' 자막이요. 저는 그걸 믿었던 사람이에요. 그래서 그 뒤로 뉴스를 볼 때 조금 다르게 봐요. 확정된 건지, 누가 확인한 건지. 그게 제가 그날에서 가져온 거예요.']},
+   ]},
+  {name:'윤○○', virtual:true,
+   who:'<b>윤○○</b> — 2014년 당시 9세, 초등학교 2학년. 서울 거주. 참사에 대한 직접적인 기억은 거의 없음. 현재 21세, 대학생.',
+   qa:[
+    {id:'q1',q:'그때를 기억하세요?',a:['거의 없어요. 아홉 살이었으니까. 기억나는 건 엄마가 TV 앞에서 울던 거예요. 저녁 준비하다가 그냥 서서 울었어요. 왜 우는지 물어봤는데 대답을 안 해 주셨어요.']},
+    {id:'q2',q:'사건을 어떻게 알게 됐나요?',a:['학교에서 노란 리본을 만들었어요. 선생님이 노란 종이를 나눠 주시고 접는 법을 알려 주셨어요. 그걸 창문에 붙였어요. 그때 \'언니 오빠들이 바다에서 돌아오지 못했다\'고 하셨던 것 같아요.']},
+    {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['노란 리본이요. 가방에 달고 다녔어요. 친구들도 다 달았어요. 뜻도 모르고 가방에 달고 다녔어요. 그냥 다들 달았으니까. 예뻐서 단 애들도 있었을 거예요.'],
+     f:{id:'q3f',q:'그 리본의 뜻을 언제 알게 됐어요?',a:['중학교 때요. 사회 시간에 영상을 봤어요. 그때 처음으로 그 배 영상을 끝까지 봤어요. 그리고 희생된 사람들이 대부분 고등학생이었다는 걸 알았어요. 그때 저는 그 나이에 거의 다 와 있었어요.','그날 집에 와서 가방을 봤는데, 리본은 이미 없었어요. 언제 떨어졌는지도 몰라요.']}},
+    {id:'q6',q:'자라면서 이 사건 때문에 달라진 게 있었나요?',a:['생존수영을 배웠어요. 초등학교 때 수영장에 가서 옷 입은 채로 물에 누워서 뜨는 거. 페트병 끌어안고. 그때는 그냥 재밌는 체육 시간이었어요.'],
+     f:{id:'q6f',q:'그 수업이 왜 생겼는지 그때 알았어요?',a:['아니요. 몰랐어요. 나중에 알았어요. 그걸 알고 나서 그 수업을 다시 떠올리니까 이상했어요. 저는 웃으면서 물에 떠 있었는데, 그 수업은 누군가가 물에 떠 있지 못해서 생긴 거니까.']}},
+    {id:'q7',q:'일상에서 이 사건과 관련된 것들을 마주칠 때가 있어요?',a:['저는 \'수학여행\'이라는 말을 거의 안 써 봤어요. 우리 땐 \'현장체험학습\'이었어요. 언니 오빠들이 수학여행이라고 하면 그게 뭔지 잠깐 생각해야 했어요.','단어 하나가 바뀐 건데, 그 사이에 뭐가 있었는지 아는 사람이 우리 또래엔 많지 않아요.']},
+    {id:'q8',q:'유가족에 대해서는 어떻게 알고 있어요?',a:['서울시의회 앞에 기억공간이 있잖아요. 그 앞을 몇 번 지나갔어요. 들어가 본 적은 없어요. 들어가도 되는 곳인지 몰랐어요. 제가 들어갈 자격이 있는지도.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['제 기억이라기보다는 물려받은 기억 같아요. 엄마가 울던 모습, 선생님이 나눠 준 노란 종이, 수영장. 그 조각들을 지금 처음으로 한 줄로 이어 본 것 같아요. 이렇게 이어 놓으니까 제 것도 맞는 것 같아요.']},
+   ]},
+ ],
+ i:[
+  {name:'서○○', virtual:true,
+   who:'<b>서○○</b> — 2022년 당시 52세. 경기도 거주. 20대 자녀 둘을 둔 부모. 그날 밤 딸이 친구들과 서울에 나가 있었음. 현재 56세.',
+   qa:[
+    {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['평범한 토요일이었어요. 딸이 친구들이랑 저녁에 서울 간다고 나갔어요. 핼러윈이라고. 저는 그게 뭐 그렇게 큰 날인가 했어요. 저희 때는 없던 거니까.']},
+    {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['밤 열한 시 넘어서 휴대폰에 속보 알림이 떴어요. 이태원에서 사람들이 쓰러졌다고. 딸이 어디 간다고 했는지 정확히 몰랐어요. 그냥 \'서울\'이라고만 들었거든요. 바로 전화했는데 안 받았어요.'],
+     f:{id:'q2f',q:'연락이 닿기까지 시간이 얼마나 걸렸어요?',a:['32분이요. 나중에 통화 기록을 봤어요. 그 32분 동안 저는 아무것도 못 했어요. 전화하고, 문자 보내고, 뉴스 새로고침하고. 남편은 차 키를 들고 현관에 서 있었어요. 어디로 가야 할지 몰라서.','딸은 홍대에 있었어요. 시끄러워서 못 들었대요. 그 말을 듣고 화를 냈어요. 화낼 일이 아닌데.']}},
+    {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['다음 날 뉴스요. 주민센터에 실종자 접수하러 온 부모들이 줄 서 있는 화면. 다들 저랑 비슷한 나이였어요. 한 분이 종이에 뭘 적고 있었는데, 손이 계속 떨렸어요.','저는 거기 서 있지 않았어요. 32분 만에 전화를 받았으니까. 그 차이가 너무 작아서 무서웠어요.']},
+    {id:'q5',q:'기억나지 않는 부분이 있나요?',a:['그 뒤 재판이 어떻게 됐는지 잘 몰라요. 책임자가 누구였는지, 어떤 결과가 나왔는지. 뉴스에 나올 때마다 보긴 했는데 머리에 남지가 않아요. 너무 길어지니까.']},
+    {id:'q6',q:'사건 이후로 일상에서 달라진 게 있나요?',a:['애들이 밤에 나가면 위치 공유를 켜 달라고 했어요. 처음엔 둘 다 싫다고 했어요. 큰애랑은 크게 싸웠어요.'],
+     f:{id:'q6f',q:'따님이 그때 뭐라고 했는지 기억나세요?',a:['\'엄마, 그건 우리 잘못이 아니잖아.\' 그랬어요. 맞는 말이에요. 놀러 간 게 잘못이 아니잖아요. 근데 그때 뉴스에서는 자꾸 \'왜 거기 갔냐\'는 얘기가 나왔어요. 저도 모르게 그 말을 딸한테 하고 있었던 거예요.','그 말을 듣고 한참 아무 말도 못 했어요.']}},
+    {id:'q8',q:'유가족에 대해서는 어떻게 기억하고 있어요?',a:['서울광장에 분향소가 있을 때 한 번 지나갔어요. 영정 사진들이 다 젊었어요. 우리 애들 나이. 저는 들어가지 못했어요. 그 앞에 서 있는 부모들을 똑바로 볼 수가 없었어요. 저는 32분 만에 딸 목소리를 들은 사람이니까.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['미안해요. 누구한테 미안한지 정확하게 말을 못 하겠어요. 그 부모들한테도, 딸한테도. 딸한테 \'왜 거기 갔냐\'는 말을 해 버린 게 계속 남아요. 그 말이 어디서 저한테 들어왔는지 이제는 알아요.']},
+   ]},
+  {name:'강○○', virtual:true,
+   who:'<b>강○○</b> — 2022년 당시 22세, 대학생. 서울 거주. 원래 그날 친구들과 이태원에 가기로 했으나 과제 마감 때문에 가지 않음. 현재 26세.',
+   qa:[
+    {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['3학년 2학기였어요. 코로나 때문에 입학하고 거의 비대면이었는데, 그해 처음으로 학교가 학교 같았어요. 친구들이랑 핼러윈에 이태원 가자고 한 달 전부터 얘기했어요. 코스튬도 사 놨어요.']},
+    {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['단톡방이요. 저는 과제 마감 때문에 결국 못 갔고, 친구 하나도 아파서 빠졌어요. 그래서 그날 아무도 안 갔어요. 밤에 단톡에 영상 링크가 올라왔어요. 누가 \'이거 이태원 아니야?\' 했어요.'],
+     f:{id:'q2f',q:'그 단톡방에서 어떤 말들이 오갔는지 기억나세요?',a:['\'우리 안 가길 잘했다.\' 누가 그렇게 썼어요. 처음엔 그냥 다행이라는 뜻이었어요. 근데 밤이 지나면서 숫자가 늘어나니까 아무도 그 말에 답을 안 했어요. 그 말이 단톡방 위에 계속 떠 있었어요.','그 말이 제일 오래 남아요. 잘한 게 아니잖아요. 그냥 우연이었잖아요.']}},
+    {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['옷장이요. 사 놓은 코스튬이 아직 옷장 안에 있어요. 한 번도 안 입었어요. 버리지도 못하고 입지도 못하고. 이사할 때도 그냥 같이 가지고 왔어요.'],
+     f:{id:'q3f',q:'그 옷을 버리지 못하는 이유가 있을까요?',a:['버리면 그날이 없었던 일처럼 될 것 같아서요. 근데 입으면 그날이 아무렇지 않은 일이 될 것 같고. 그래서 그냥 걸려 있어요. 그 옷이 저한테는 그날이에요.']}},
+    {id:'q5',q:'기억나지 않는 부분이 있나요?',a:['그날 밤에 영상을 봤는지 안 봤는지가 기억이 안 나요. 분명히 링크가 올라왔는데. 열어 봤던 것 같기도 하고 안 열어 본 것 같기도 하고. 이상하게 그 부분만 비어 있어요.']},
+    {id:'q6',q:'사건 이후로 일상에서 달라진 게 있나요?',a:['친구들끼리 \'어디야?\'를 엄청 자주 물어요. 그날 이후로. 단톡방에 누가 나간다고 하면 누군가는 꼭 도착했는지 물어봐요. 농담처럼 하는데 아무도 안 빼먹어요.','그리고 사람 많은 데는 이제 잘 안 가요. 축제 같은 거. 가더라도 일찍 나와요.']},
+    {id:'q7',q:'이후에 바뀐 것들을 일상에서 마주칠 때는 어떠세요?',a:['다음 해 핼러윈에 이태원 쪽에 경찰이 엄청 많았다고 들었어요. 그 얘기를 듣고 처음 든 생각이 \'그럼 그날은 왜\'였어요. 할 수 있었던 거잖아요.']},
+    {id:'q8',q:'유가족에 대해서는 어떻게 기억하고 있어요?',a:['희생자 중에 저랑 같은 나이가 많았어요. 같은 학번도 있었을 거예요. 그분들 부모님이 지금 저희 부모님 나이예요. 그렇게 생각하면 너무 가까워져서, 일부러 멀리 두게 돼요. 그게 잘하는 건지는 모르겠어요.']},
+    {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['저는 과제 때문에 안 갔어요. 이유가 그거예요. 너무 작은 이유예요. 거기 있었던 사람들도 작은 이유로 거기 있었을 거예요. 친구가 가자고 해서, 코스튬을 사 놔서. 저랑 같은 이유요. 그게 계속 무거워요.']},
+   ]},
+ ],
+};
+
+/* 온라인 인터뷰·증언 — 공개된 기사·글에서 짧게 인용하고 출처를 적었습니다 */
+const ONLINE = {
+ s:{note:'생존자·유가족·구조대원이 언론과 온라인에 남긴 말 가운데 일부를 짧게 옮겼습니다. 전문은 각 출처에서 볼 수 있습니다.',
+  items:[
+   {q:'어떤 종류의 불행은 겪어보지 않으면 모른다.',d:'필명 ‘산만언니’로 글을 써 온 삼풍백화점 생존자. 세월호 5주기를 앞두고, 참사를 두고 ‘지겹다’고 말할 수 있는 건 겪은 당사자들뿐이라고 썼다.',who:'삼풍백화점 생존자 ‘산만언니’',src:'연합뉴스',title:'삼풍백화점 생존자 “세월호 지겹다 할 수 있는 건 당사자뿐”',date:'2019.04',url:'https://v.daum.net/v/az4DG53Qhx'},
+   {q:'전쟁터가 아닌 일상에서 이토록 많은 사람이 한 번에 죽는다는 게',d:'같은 생존자가 이태원 참사 직후, 인터뷰 요청 대신 서면으로 밝힌 입장의 첫 문장. 별다른 이유 없이 사람이 죽는 일이 여전히 납득되지 않는다고 했다.',who:'삼풍백화점 생존자 이선민(산만언니)',src:'허프포스트코리아',title:'삼풍백화점 생존자의 이태원 참사 입장',date:'2022.10',url:'https://www.huffingtonpost.kr/article/204349'},
+   {q:'몸서리치도록 보고 싶어요.',d:'29주기 추모식에서. 동생은 백화점 1층 카메라 매장에서 아르바이트를 하다 숨졌고, 가족은 7일 만에 시신을 찾았다고 했다.',who:'희생자의 언니 진씨',src:'뉴시스',title:'“몸서리치도록 보고 싶어”…삼풍참사 29주기 추모식',date:'2024.06.29',url:'https://www.newsis.com/view/NISX20240629_0002792124'},
+   {q:'난지도에서 경아의 명찰을 찾을 수 있었다',d:'수습이 끝나기 전에 잔해가 중장비로 옮겨졌고, 아버지는 쓰레기 매립지였던 난지도를 헤매다 딸의 명찰을 찾았다. 30년이 지나서도 그때를 생생히 기억한다고 했다.',who:'손영수 삼풍유족회장',src:'헤럴드경제',title:'‘난지도 매립장서 찾은 딸의 유골’ 참사 300번의 기억',date:'2025',url:'https://heraldk.com/?p=2504993'},
+   {q:'구조 못 한 여자분의 목소리를 들어서',d:'20주기 대담에서. 당시 구조하지 못한 사람의 목소리가 남아 오래 마음고생을 했고, 심할 때는 병원 치료를 받기도 한다고 말했다.',who:'경광숙 당시 도봉소방서 구조대장',src:'YTN',title:'삼풍백화점 붕괴 20년 — 최초 보도 기자와 구조대장',date:'2015.06.29',url:'https://www.ytn.co.kr/_ln/0103_201506291521142769'},
+   {q:'아무리 털어도 안 털어지니까 혀로도 닦아줬다고',d:'메모리[人]서울프로젝트 구술집에 실린 생존자의 기억. 병원에서 만난 남편이 석면 먼지를 뒤집어쓴 아이의 얼굴을 손으로, 끝내는 혀로 닦아 주었다고 전한다.',who:'아이들과 함께 구조된 생존자 (구술)',src:'쿠키뉴스 — 『1995년 서울, 삼풍』 소개',title:'[신간] ‘1995년 서울, 삼풍’',date:'2016.06',url:'https://www.kukinews.com/article/view/kuk201606240182'},
+  ]},
+ w:{note:'생존자·유가족이 언론과 공개 발언에서 남긴 말 가운데 일부를 짧게 옮겼습니다. 전문은 각 출처에서 볼 수 있습니다.',
+  items:[
+   {q:'가만히 있으라고 구하러 왔다고 해서 기다렸는데',d:'참사 1000일, 광화문 촛불집회 연단에서 생존 학생들이 처음으로 공개 발언을 했다. 그 결과 사랑하는 친구들을 평생 만날 수 없게 됐다고 말했다.',who:'단원고 생존 학생 장애진',src:'인사이트 (미디어몽구 영상)',title:'“나만 살아서 미안해” 세월호 생존 학생의 눈물',date:'2017.01',url:'https://www.insight.co.kr/news/98170'},
+   {q:'‘정치적 시선’이 아닌 ‘이웃의 시선’으로 바라봐 주신다면',d:'5주기 기억식에서 친구들에게 쓴 편지를 낭독했다. ‘세월호 생존자’라는 말이 여전히 무거운 죄책감으로 남아 있다고 했다.',who:'세월호 생존 학생 모임 ‘메모리아’ 대표 장애진',src:'프레시안',title:'“봄이 오면, 어김없이 너희들 생각이 나”',date:'2019.04.16',url:'https://www.pressian.com/pages/articles/237033'},
+   {q:'우리가 지금 어떻게 사는지, 어떤 아픔이 있는지 아무도 묻지 않는다',d:'학생들의 탈출을 돕고 가까스로 살아남은 화물차 기사. 이후 참사와 관련된 장소를 찾지 못했고, TV에 세월호가 나오면 채널을 돌린다고 했다.',who:'세월호 생존자 윤길옥',src:'서울신문',title:'“언제쯤 홀로 설 수 있을까요”…고통 여전한 세월호 생존자들',date:'2020.04.15',url:'https://m.seoul.co.kr/news/2020/04/15/20200415500090'},
+   {q:'생존자가 왜 죄인인가요?',d:'참사 1년. 생존자들은 ‘혼자만 살아 돌아왔다’는 타박과 지나친 관심 속에서 대인기피와 우울을 겪었고, ‘생존자’라는 말은 금기어처럼 되었다고 전했다.',who:'세월호 생존자 가족 대표 장동원',src:'노컷뉴스',title:'[세월호 육성] “생존자가 왜 죄인인가요?”',date:'2015.04',url:'https://nocutnews.co.kr/news/4395494'},
+   {q:'‘잘 살아도 되느냐’는 비난도 있었다',d:'스무 살에 동생 성호 군을 잃은 누나. 비슷한 참사가 일어날 때마다 피해자가 비난받는 현실은 10년이 지나도 바뀌지 않았다고 말했다.',who:'세월호 유가족 박보나',src:'서울신문',title:'“트라우마 아동 도우며 상처 극복”…치유자가 된 생존자들',date:'2024.04.15',url:'https://m.seoul.co.kr/news/2024/04/15/20240415500160'},
+   {q:'적어도 엄마 아빠는 잘할 수 있을 때까지 열심을 다하였노라',d:'딸을 잃은 뒤 10년 동안 5000여 개의 영상으로 유가족의 시간을 기록해 다큐멘터리 「바람의 세월」을 만든 아버지. 언젠가 아이들을 만나는 날 그렇게 말할 수 있기를 바란다고 했다.',who:'단원고 2학년 1반 문지성의 아버지 문종택',src:'프레시안',title:'「바람의 세월」 — 10년의 기록',date:'2024.03',url:'https://www.pressian.com/pages/articles/2024032622450071954'},
+  ]},
+ i:{note:'이태원 참사 생존자·유가족이 증언하는 1년 전 ‘그날’ — 온라인 인터뷰 기록 중 발췌',
+  items:[
+   {t:'…파란색 옷을 입으셨던 여자분과 눈이 마주쳤는데, 이분이 너무 괴로운 표정으로 "꺼내주세요" "살려주세요" 이러는 거예요. 살면서 그런 표정을 처음 봤는데 너무 놀라 상황 판단이 잘 안 됐어요. (…) 핸드폰을 켜 119에 신고하려는 순간, 완전히 깔렸어요. 제 뒤에 있던 몇명인지도 모를 사람들이 제 위로 한꺼번에 쓰러진 거예요. 한순간이었어요.',who:'생존자 이주현 씨'},
+   {t:'…외국인 한분이 막 울면서 제 손을 잡고 정말 미안하다고, 정말 미안하다고 말해주었어요. 그런데 손을 뻗는 사람이 저만 있는 게 아니잖아요. 몇십 몇백명이 손을 뻗고 있잖아요. 그러니까 그 외국인이 네 손만 잡아줄 수가 없다며 다른 사람들의 손도 잡아줘야 한다면서 정말 미안하다고….',who:'생존자 이주현 씨'},
+   {t:'…앞으로 어떻게 되는지 물어봐도 누구 하나 피드백해주는 사람도 없고, 경찰관도 소방관도 119구급대원도 전부 붙잡고 물어봤지만 다 모른대요. (…) 참다못해 한 경찰관에게 따지듯 물어보니까 신원 확인이 안 됐기 때문에 체육관에 들어갈 수 없다, 주민센터(한남동주민센터)로 가서 신고부터 하라고 하더라고요.',who:'고 이주영 씨 오빠 이진우 씨'},
+   {t:'…그렇게 돌고 돌다 새벽 2시 반이 넘어 서울대학교병원에서 동생을 찾았어요. 엄마가 왠지 서울대병원에 있을 것 같다고 해서 그리로 향했어요. 도착해서 병원에서 나오는 경찰한테 동생 이름이랑 주민등록번호를 대며 물어보니까 여기 있다는 거예요. (…) 두시간 후에야 저희가 동생을 찾은 거죠. 동생은 그때까지 계속 응급실에 있었어요. 그리고 영안실로, 장례식장으로….',who:'고 김유나 씨의 언니 김유진 씨'},
+   {t:'…나중에 의현이 구급일지를 받아봤어요. 신원 미상, 이름도 없이 의현이를 \'다-28\'이라고 명명한 구급일지에는 의현이를 원효로다목적체육관에서 동국대병원으로 옮긴 구급대원들의 최초 접촉시간이 참사 다음 날인 10월 30일 새벽 6시 30분경, 그때 의현이 체온이 34.0도라고 적혀 있었어요. 체온이 34도가 되려면 세시간 전에 사망했어야 한다고 하더라고요. 구급일지상 의현이 사망 추정시각은 \'10월 29일 오후 10시 15분 전후\'예요. 그치만 그전 참사가 발생한 시각일 뿐이지 실제 의현이가 사망한 시각이 아니잖아요. 다음 날 새벽 6시에 체온이 34도였으면 의현이가 30일 새벽까지는 살아 있었을 수 있는 거잖아요. 그렇게 생각하니까 너무 속상해서 많이 울었어요.',who:'고 김의현 씨 누나 김혜인 씨'},
+   {t:'…그냥 처음부터 끝까지, 지금까지 아무것도 이해되는 건 없어요. (…) 다들 병원에 좀 다녀오라고 할 정도로 정신이 없는 상태였는데 누가 "누나분 되시죠? 이거 하나 서명만 해주세요"하는 거예요. (…) 문서를 제대로 읽어보지를 못해서 사진을 찍어놓고 장례 다 치른 후에 봤어요. 장례지원금, 그거 때문에 그 와중에 서명을 하라 그런 거였더라고요.',who:'고 양희준 씨의 누나 양진아 씨'},
+  ]},
+};
+
+const BASE = {
+ s:{who:'<b>김○○</b> — 1995년 당시 28세. 서울 서초구 인근 회사에 다니던 직장인. 사고 당일 점심시간에 삼풍백화점 근처를 지나쳤던 경험이 있음. 현재 57세.',
+  qa:[
+   {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['그때 저는 강남 쪽 회사를 다니고 있었어요. 입사한 지 한 3년 됐을 때였나. 그때 삼풍이 되게 가까웠거든요. 점심 먹으러 거기 지하 식당가 자주 갔었어요. 직원들이랑 같이. 그날도 사실 점심을 거기서 먹을까 했는데 다른 데로 갔어요. 이유도 없이 그냥. 그냥 그날따라 그쪽이 아닌 다른 곳으로 갔어요.','...그게 이상하게 오래 남더라고요. 이유가 없잖아요. 그냥 발길이 다른 쪽으로 갔을 뿐인데.']},
+   {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['사무실에 있었어요. 오후였는데 갑자기 누군가가 소리를 지르더라고요. "삼풍이 무너졌대" 하고. 처음엔 무슨 말인지 몰랐어요. 삼풍이 무너진다는 게 어떤 그림인지 머릿속에 안 그려졌어요. 건물이 무너진다는 게... 그게 진짜 일어나는 일이라고 생각을 못 했던 거죠. 뉴스 켰는데 거기가 맞더라고요. 제가 점심마다 갔던 그 지하 식당가.','한동안 말을 못 했어요.']},
+   {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['...콘크리트 더미요. TV에서 나왔던 거긴 한데, 근데 그게 저한테는 그냥 TV 화면이 아니에요. 냄새 같은 게 연결돼 있어요. 이상하죠? 실제로 현장에 있었던 것도 아닌데. 근데 그 후에 지인이랑 현장 근처를 지나간 적이 있어서 그런 것 같아요. 뭔가 퀴퀴하면서 시멘트 냄새 같기도 하고. 그게 콘크리트 더미 이미지랑 같이 붙어 있어요.','그리고 사람들이 이름을 들고 서 있던 거. 유가족들이 가족 찾는다고 사진이나 이름 종이를 들고 있던 장면. 그게 오래 남아요.'],
+    f:{id:'q3f',q:'이름을 들고 서 있던 장면이 오래 남는다고 하셨는데, 그게 왜 그렇게 남는 것 같으세요?',a:['모르겠어요. 되게... 단순한 행동이잖아요. 종이에 이름 써서 들고 서 있는 거. 근데 그게 할 수 있는 전부라는 거잖아요. 찾을 수가 없으니까. 연락도 안 되고. 그냥 거기 서서 들고 있는 것밖에 할 수 없는 상황. 그게 이미지로 남아 있어요. 사진 찍어서 들고 서 있는 그 사람들.']}},
+   {id:'q4',q:'그 장면들이 어디서 온 건지 알 수 있을 것 같으세요?',a:['TV가 많죠. 근데 그 냄새는 직접 경험한 거고... 이름 종이 드는 것도 TV지만 어떤 건 헷갈려요. 그 근처를 워낙 자주 다녔으니까 공간 자체가 제 기억이랑 섞여 있어요. 제가 걸어다니던 길이고 제가 점심 먹던 데가 사라진 거잖아요. 그러니까 그 이후로는 제 실제 기억이랑 뉴스 화면이 잘 구분이 안 돼요.']},
+   {id:'q5',q:'기억나지 않는 부분도 있나요?',a:['숫자요. 502명이라는 거 나중에 알았어요. 한참 후에. 그때는 그냥 \'많이 죽었다\' 정도였어요. 이름도, 누가 거기 있었는지도. 다 숫자로만 남아 있고. 개인으로는 별로 기억이 없어요.','그리고 그 후에 어떻게 됐는지. 재판이 어떻게 됐고, 유가족들한테 뭐가 지급됐고, 이런 게 전혀 기억이 없어요. 그냥 어느 순간 일상으로 돌아왔고, 뉴스에서도 안 나오고, 그렇게 됐어요.'],
+    f:{id:'q5f',q:'그 후에 어떻게 됐는지 기억이 없다고 하셨는데, 지금 생각해보면 어떠세요? 알았어야 했는데 몰랐다는 느낌인지, 아니면 그럴 수밖에 없었다는 느낌인지.',a:['...둘 다인 것 같아요. 저도 살아야 하니까. 일도 가야 하고 밥도 먹어야 하고. 근데 지금 와서 생각하면 그렇게 금방 잊어버렸다는 게 좀 이상하기도 해요. 502명인데. 502명이면 엄청나게 많은 숫자인데. 어떻게 그게 그냥 일상으로 돌아오는 게 가능했는지. 지금은 그게 더 이상한 것 같아요. 그때는 자연스러웠는데.']}},
+   {id:'q6',q:'사건 이후로 일상에서 달라진 게 있었나요?',a:['한동안 백화점을 못 갔어요. 롯데, 현대 이런 데를. 들어서면 천장을 보게 되더라고요. 지금도 조금은 그래요. 완전히 사라진 건 아니에요. 기둥 굵기를 보거나. 이게 괜찮은 건지. 말은 안 하지만 혼자 확인하고. 웃기죠?','에스컬레이터도 한동안 잘 못 탔어요. 갇히는 느낌 때문에.'],
+    f:{id:'q6f',q:'지금도 천장을 본다고 하셨는데, 30년이 지난 건데. 그게 본인한테는 어떻게 느껴지세요? 당연한 건지, 아니면 가끔 스스로 이상하다고 느끼시는지.',a:['이상하다고 생각한 적이 없었어요, 사실. 그냥 하는 거라서. 근데 딸이 어릴 때 같이 백화점 가면 제가 입구에서 좀 멈칫하는 게 있었나봐요. 딸이 나중에 "아빠 왜 항상 안에 들어가기 전에 잠깐 서 있어?" 하더라고요. 그때 좀 놀랐어요. 제가 그러고 있는 줄 몰랐거든요. 그냥 습관이 된 거예요. 몸이 먼저 반응하는.']}},
+   {id:'q7',q:'이후에 생긴 안전수칙 같은 것들, 일상에서 마주쳤을 때 어떻게 느껴지세요?',a:['저는 그거 보면 이유가 먼저 생각나요. 저 문장이 왜 생겼을까. 회사에서도 소방 대피 훈련 같은 거 하면, 귀찮다고 하는 사람들이 있잖아요. 근데 저는 그 훈련 자체보다 왜 이게 생겼는지가 자꾸 생각되는 거예요. 이게 그냥 만들어진 게 아니라는 게.','근데 주변에 그걸 같이 생각하는 사람이 많지는 않더라고요. 그게 좀 외로운 감각이에요.']},
+   {id:'q8',q:'희생자나 유가족에 대해서는 어떻게 기억하고 있어요?',a:['솔직히 잘 몰라요. 아까 말한 것처럼 이름을 들고 서 있던 사람들 이미지는 있는데, 그분들이 지금 어떻게 사는지는 생각해본 적이 없었던 것 같아요. 물어보시니까 처음 생각해보는 것 같기도 하고.','뭔가 위령탑이나 그런 게 있다고 들은 것 같은데 거기 가본 적도 없고. 어디 있는지도 사실 잘 몰라요.'],
+    f:{id:'q8f',q:'위령탑이 있는지도 잘 모른다고 하셨는데, 이제 알고 나니까 어떤 마음이에요?',a:['...모르고 있었다는 게 좀 부끄럽네요. 거기를 그렇게 자주 다녔는데. 서울에 살면서. 근데 찾아볼 생각을 한 번도 안 했어요.','양재 시민의 숲이라고요? 거기 가끔 가는데. 한 번도 보지 못했어요. 아니, 봤는데 그게 뭔지 몰랐을 수도 있고. 그냥 지나쳤을 수도 있고.']}},
+   {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['불편해요. 좋은 의미로. 잊고 있었던 것들이 다시 올라오는 것 같아서.','그때 점심을 다른 데서 먹었던 게 자꾸 생각나요. 이유 없이 방향을 틀었던 것. 그게 지금도 이상해요. 나는 살았고, 그날 거기 있었던 사람들은 그렇지 않았고. 그 차이가 뭔지 아직도 모르겠어요. 이유가 없어요. 그냥 그날 그쪽으로 안 갔을 뿐이에요.']},
+  ]},
+ w:{who:'<b>이○○</b> — 2014년 당시 19세. 고등학교 3학년, 수험생. 단원고와 다른 학교에 재학 중이었으나 같은 경기도 안산 거주. 현재 31세.',
+  qa:[
+   {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['수험생이었어요. 고3. 그때 4월이면 딱 수능 준비가 본격적으로 시작되는 시기잖아요. 아침에 학교 가서 자습하고, 학원 가고, 집에 와서 또 공부하고. 그런 루틴이었어요.','안산이었어요. 단원구요. 단원고가 제 집에서 멀지 않았어요. 그 학교 친구들이랑 아는 사이는 아니었는데, 같은 동네였고... 버스도 같은 거 타는 애들이 있었어요.']},
+   {id:'q2',q:'처음 알게 된 건 어떤 경로였나요?',a:['학교에서요. 쉬는 시간에 애들이 핸드폰 보다가 웅성웅성하더라고요. 배가 기울었다고. 처음에는 그냥 \'기울었다\'니까 구조가 되겠지 생각했어요. 다들 그렇게 생각했을 거예요. 그날 수업이 제대로 됐는지 기억이 없어요. 선생님들도 계속 핸드폰 보시고.','집에 와서 뉴스 켰는데 그때까지도 \'구조 중\'이었어요. 근데 밤에 보니까 달라져 있더라고요.']},
+   {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['배가 기울어지는 거요. 실시간으로 중계되던 거. 완전히 누운 배. 그게 너무 천천히 이루어졌잖아요. 그 속도가 이상했어요. 구조가 올 수 있는 속도인데 왜 아무도 안 오는 건지.','그리고 학교 앞이요. 다음 날 학교 오는데 단원고 근처를 지나갔거든요. 현수막이 붙어 있고, 학부모들이 모여 계시고. 아무 소리가 없었어요. 그 조용함이 이상했어요. 그 나이 때 학교 앞이면 되게 시끄럽잖아요. 근데 그날은 그냥 아무 소리가 없었어요.'],
+    f:{id:'q3f',q:'그 조용함이 지금도 남아 있나요?',a:['네. 소리가 없는 장면이요. 이상하게 그게 남아요. 배 기울어지는 영상보다도. 그 동네 조용함이.','그 이후로 가끔 어떤 공간이 비정상적으로 조용하면 그 느낌이 올라와요. 뭔가 잘못됐다는 느낌. 조용한 게 무서운 게 됐어요. 그때부터.']}},
+   {id:'q4',q:'그 장면들이 어디서 온 건지 알 수 있으세요?',a:['배 기울어지는 건 TV 화면이에요. 근데 학교 앞은 제가 직접 본 거. 그 두 개가 완전히 다른 질감이에요. TV에서 본 건 어떻게 보면 멀어요. 화면 속 얘기 같기도 하고. 근데 학교 앞에서 본 건 냄새도 나고, 발밑 느낌도 있고, 사람들 표정도 있고.','근데 자꾸 섞이는 것 같기도 해요. 나중에 다큐 같은 거 보면 영상이 추가되고, 그게 또 \'내 기억\'이 되는 것 같기도 하고.']},
+   {id:'q5',q:'기억나지 않는 부분이 있나요?',a:['많아요. 구조 과정을 사실 잘 몰라요. 해경이 어떻게 했고, 민간 선박이 먼저 구했다는 것도 나중에 알았어요. 그 날 실제로 무슨 일이 일어났는지, 선내에서 뭐가 있었는지. 그게 사실 제대로 정리된 적이 없는 것 같아요.','그리고 학생 한 명 한 명 이름요. 304명이라는 숫자는 알아요. 근데 이름은 몇 명이나 알고 있을까. 손에 꼽을 것 같아요.'],
+    f:{id:'q5f',q:'304명이라는 숫자와 이름을 몇 명 아는지 사이의 간격, 그게 본인한테 어떻게 느껴지세요?',a:['불편하죠. 근데 어떻게 해야 하는지를 모르겠어요. 다 기억해야 한다는 의무감 같은 게 있으면서도. 이름 304개를 외우는 게 기억하는 방법인지도 모르겠고.','4.16 기억저장소 같은 데서 개인 기록을 모아놓은 거 알아요. 근데 들어가서 보는 게 쉽지 않았어요. 들어가면 실제로 누군가의 방이 나오고, 꿈이 나오고. 그게... 감당이 안 되는 것 같아서.']}},
+   {id:'q6',q:'사건 이후로 일상에서 달라진 게 있나요?',a:['수학여행을 못 갔어요. 고3이니까 어차피 없었는데, 그 아래 후배들이 다 취소됐잖아요. 저는 괜찮은데... 근데 이상하게 수학여행 얘기가 나오면 불편해요. \'우리 때는 갔는데\' 같은 얘기가 아무렇지 않게 나오면.','그리고 선박이요. 배 타는 게 이상해졌어요. 탈 수는 있는데, 안전 안내 방송을 그냥 듣지 않았던 것과 다르게 이제는 귀가 열려요. 어디에 구명조끼가 있는지. 출구가 어딘지.'],
+    f:{id:'q6f',q:'그 안내 방송에 귀가 열린다는 표현이 인상적인데, 그게 무섭다거나 불안한 감각으로 느껴지는 건지, 아니면 그냥 해야 할 것 같은 감각인지.',a:['그냥 해야 할 것 같은 감각이에요. 무섭다기보다는. 근데 가끔은 그게 슬프기도 해요. 이걸 들어야 하는 세상이 됐다는 게. 예전엔 그냥 흘려들었는데, 이제는 안 들으면 안 될 것 같은 느낌. 그게 어디서 왔는지 알아서인지.']}},
+   {id:'q7',q:'안전수칙 같은 것들, 일상에서 마주쳤을 때 어떠세요?',a:['수학여행이라는 단어가 없어진 게 오래됐잖아요. 제 사촌이 중학교 다니는데, 걔가 \'현장체험학습\'이라고 말해요. 수학여행이라는 말을 모르더라고요. 그냥 원래부터 그랬던 것처럼. 그게 좀 이상하게 느껴졌어요. 단어가 사라졌는데 그게 자연스러운 게.','그리고 학교에서 현장학습 갈 때 안전요원 비율 같은 거, 학부모 동의서 여러 장 쓰는 거. 그게 왜 생긴 건지 아는 사람이 얼마나 있을까 싶어요.']},
+   {id:'q8',q:'유가족에 대해서는 어떻게 기억하고 있어요?',a:['광화문 농성이요. 되게 오래 계셨잖아요. 근데 어느 순간부터 뉴스에서 잘 안 나오더라고요. 특별법이 어떻게 됐고, 인양이 어떻게 됐고. 나중에는 저도 찾아보지 않으면 잘 모르게 됐어요.','그분들이 지금도 거기 있다는 건 알아요. 계속 싸우고 있다는 거. 근데 제 일상에서는 잘 안 보여요. 그게... 죄송한 마음이에요.'],
+    f:{id:'q8f',q:'죄송하다는 마음, 그게 어떤 마음인지 좀 더 말해줄 수 있어요?',a:['같은 동네였으니까요. 그 학교 애들이 타던 버스 저도 탔으니까. 근데 저는 그냥 수험생으로 살았고, 대학 가고, 취직하고. 그분들은 아직도 거기 있는 것 같은데. 시간이 다르게 흐르는 것 같아요. 제 시간이랑 그분들 시간이.','어느 순간 그게 불편해서 안 보려 했던 것 같아요. 모르게 된 게 의도한 건 아닌데, 어쩌면 의도한 것일 수도 있겠다는 생각이 지금 드네요.']}},
+   {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['그때 그 조용했던 학교 앞이 계속 생각나요.','저는 그날 시험 공부를 했어요. 거기서 사람들이 죽어가고 있는 동안. 해야 하는 거였지만. 그게 이상하게 계속 남아요. 같은 시간에 다른 일이 일어나고 있었다는 거. 그 동시성이 불편해요.']},
+  ]},
+ i:{who:'<b>박○○</b> — 2022년 당시 25세. 서울 거주, 직장인 1년 차. 당일 사고 현장과 200m 거리에 위치한 친구 가게에 있었음. 참사 이후 지인 중 경상을 입은 사람이 있음. 현재 28세.',
+  qa:[
+   {id:'q1',q:'그때 어떤 일상을 보내고 계셨어요?',a:['취직한 지 한 1년 됐을 때예요. 코로나가 풀리고 나서 처음 맞는 가을이었어요. 그때 다들 그랬잖아요. 뭔가 드디어 밖에 나가도 된다는 느낌. 핼러윈이라는 게 예전엔 잘 몰랐는데 그해는 다들 뭔가 하려고 들떴던 기억이 나요.','저도 그날 나갔어요. 이태원은 아니고, 친구 가게가 있어서 거기 있었는데. 거리가 그렇게 멀지 않았어요.']},
+   {id:'q2',q:'사건을 처음 알게 된 건 어떤 경로였나요?',a:['SNS요. 인스타그램 스토리에 영상이 올라오기 시작했어요. 처음에는 뭔지 몰랐어요. 사람들이 쓰러져 있고, CPR을 하고 있는데 옆에서 아무렇지 않게 구경하는 사람들도 있고. 처음엔 뭔가 싸움이 난 건가 했어요.','그 다음에 문자가 왔어요. 지인한테서. "나 지금 이태원인데 이상해. 사람들이 넘어지고 있어." 그때 바로 전화했는데 연결이 안 됐어요. 그 몇 분이 길었어요. 되게.'],
+    f:{id:'q2f',q:'전화가 안 됐던 그 몇 분, 지금 다시 떠올리면 어때요?',a:['...아직도 폰 배터리가 갑자기 꺼지거나, 전화 연결이 안 되면 과하게 반응하는 것 같아요. 저도 알아요, 그냥 통화권 이탈일 수 있다는 거. 근데 몸이 먼저 반응해요. 그 몇 분이 몸에 남아 있는 것 같아요.']}},
+   {id:'q3',q:'지금도 머릿속에 남아 있는 장면이 있나요?',a:['두 가지예요.','하나는 그 영상들이에요. 너무 많이 봤어요. 그날 밤에 계속 올라오는 걸 계속 봤어요. 멈추지를 못했어요. 이상하게. 봐야 할 것 같은 느낌? 눈을 떼면 안 될 것 같은.','다른 하나는 그날 밤 집에 돌아오는 지하철이에요. 사람들이 다 핸드폰을 보고 있었는데, 표정이 다 달랐어요. 어떤 사람은 울고 있고, 어떤 사람은 뭔지도 모르는 것 같고, 어떤 사람은 핸드폰 보면서 웃고 있고. 같은 시간에 같은 칸에 타고 있는데 완전히 다른 세계에 있는 사람들 같았어요.'],
+    f:{id:'q3f',q:'그 영상을 멈추지 못했다고 하셨는데, 지금 생각하면 왜 그랬을 것 같아요?',a:['모르겠어요. 봐야 할 것 같았어요. 눈을 돌리면 안 될 것 같은. 거기 있었을 수도 있는 내가 있고, 거기 있는 사람들이 있고. 그게 같은 건지 다른 건지. 확인하고 싶었던 것 같기도 하고.','근데 너무 많이 봐서 지금은 구체적인 장면이 잘 안 떠올라요. 오히려. 너무 많아서 뭉개진 것 같기도 해요.']}},
+   {id:'q4',q:'그 장면들이 어디서 온 건지 알 수 있으세요?',a:['이태원은 거의 다 SNS예요. 삼풍이나 세월호 같은 세대들은 TV 앞에 앉아서 봤다고 하던데, 우리는 손 안에 들고 있었어요. 화면이 더 작은데 더 가까웠어요.','근데 그게 이상한 게, 직접 거기 있었던 것도 아닌데 제가 목격자인 것 같은 느낌이 들었어요. 그 영상들이 진짜 일어난 일이라는 게. 그게 현실이랑의 경계가 되게 흐릿했어요.']},
+   {id:'q5',q:'기억나지 않는 부분이 있나요?',a:['공식적인 건 거의 몰라요. 누가 책임졌는지. 재판이 어떻게 됐는지. 특별법이 언제 통과됐는지. 뉴스에서 뭔가 계속 나오긴 했는데 복잡하고 지지부진하고 그러다보니 어느 순간 안 따라가게 됐어요.','그리고 희생자 이름요. 159명인데 저는 한 명도 제대로 모르는 것 같아요. 영상은 그렇게 많이 봤는데.'],
+    f:{id:'q5f',q:'영상은 많이 봤는데 이름은 한 명도 모른다는 거, 그게 본인한테 어떻게 느껴지나요?',a:['...그게 이상한 것 같아요. 지금 말하면서. 그 영상 속에 사람들이 있었는데. 근데 그 사람들이 누군지는 몰라요. 얼굴과 이름이 분리돼 있는 것 같아요. 영상은 기억하는데 사람은 기억 못 하는.','오마이뉴스에 기록 1029인가 그거 있잖아요. 거기서 한 명씩 소개하는 걸 봤는데, 그걸 볼 때는 좀 달랐어요. 숫자가 아닌 사람으로 보이는 느낌.']}},
+   {id:'q6',q:'사건 이후로 일상에서 달라진 게 있나요?',a:['좁은 골목이요. 이태원 쪽 가면 그 골목 피해요. 가도 되는 거 아는데. 근데 발이 잘 안 가요.','그리고 사람 많은 데서 출구 확인해요. 들어가면 일단 나가는 방향을 봐요. 콘서트나 페스티벌 같은 데서 특히. 같이 간 친구들이 가끔 "왜 그래?" 하는데 설명하기가 애매해요. 그냥 보게 되더라고 하면 이해를 잘 못하는 것 같기도 하고.'],
+    f:{id:'q6f',q:'친구들한테 설명하기 애매하다고 하셨는데, 왜 그런 것 같아요?',a:['비슷한 경험을 한 건데 다르게 남은 것 같아요. 저는 지인이 그 근처에 있었으니까 다르게 남았고, 그냥 SNS로만 봤던 친구들은 또 다르게 남아 있고. 근데 그걸 설명하면 제가 더 트라우마인 척하는 것 같기도 하고. 거기 직접 있었던 사람들한테 미안하기도 하고. 그러니까 그냥 말을 안 하게 돼요.']}},
+   {id:'q7',q:'이후에 생긴 안전수칙 같은 것들, 일상에서 마주쳤을 때 어떠세요?',a:['솔직히 잘 모르겠어요. 뭔가 생겼는지도 잘 모르고. 핼러윈 때 경찰이 더 많이 나온다는 건 알아요. 근데 그게 어떤 규정이고 법이 어떻게 바뀐 건지는 모르고.','이름도 2024년에야 확정됐다는 거 몰랐어요. ‘10.29 이태원 참사\'라는 이름이 그렇게 늦게 정해진 줄. 그게 더 이상했어요. 이름도 없이 2년이 지났다는 게.'],
+    f:{id:'q7f',q:'이름이 2년 만에 정해졌다는 걸 지금 알았는데, 그게 어떻게 느껴져요?',a:['이름을 놓고 싸웠다는 게 이상해요. 그분들한테는 그게 얼마나 힘든 일이었을까. 사람이 죽었는데 어떻게 부를지를 2년 동안 결정 못 한 거잖아요. 뭔가를 인정하고 싶지 않았던 것 같아요, 누군가가.']}},
+   {id:'q8',q:'유가족에 대해서는 어떻게 기억하고 있어요?',a:['뉴스에서 봤어요. 근데 어느 순간 저도 안 찾아보게 됐어요. 세월호 유가족들이 아직도 싸우고 있는 것처럼, 이분들도 아직 싸우고 있는 건 알아요. 근데 제 일상에서는 멀어졌어요.','죄책감이 있어요. 근데 그 죄책감이 뭔가를 하게 만들지는 않는 것 같아요. 그냥 죄책감으로만 남아 있어요. 그게 또 이상한 것 같기도 하고.']},
+   {id:'last',q:'지금 이 이야기를 하면서 어떤 마음이 드세요?',a:['그날 밤 지하철 생각이 나요. 같은 칸에 울고 있는 사람도 있고, 웃고 있는 사람도 있던.','저는 어느 쪽이었는지 모르겠어요. 그 중간 어딘가였을 것 같아요. 알고는 있었는데 아직 실감이 안 됐던 것 같아요. 그게 지금도 비슷한 것 같기도 해요. 알고는 있는데 어떻게 받아들여야 하는지 잘 모르겠는. 어떤 거리를 두고 있는 것 같아요. 그게 맞는 건지 틀린 건지는 아직도 모르겠어요.']},
+  ],
+  online:{src:'이태원 참사 생존자·유가족이 증언하는 1년 전 ‘그날’ — 온라인 인터뷰 기록 중 발췌',
+   items:[
+    ['…파란색 옷을 입으셨던 여자분과 눈이 마주쳤는데, 이분이 너무 괴로운 표정으로 "꺼내주세요" "살려주세요" 이러는 거예요. 살면서 그런 표정을 처음 봤는데 너무 놀라 상황 판단이 잘 안 됐어요. (…) 핸드폰을 켜 119에 신고하려는 순간, 완전히 깔렸어요. 제 뒤에 있던 몇명인지도 모를 사람들이 제 위로 한꺼번에 쓰러진 거예요. 한순간이었어요.','생존자 이주현 씨'],
+    ['…외국인 한분이 막 울면서 제 손을 잡고 정말 미안하다고, 정말 미안하다고 말해주었어요. 그런데 손을 뻗는 사람이 저만 있는 게 아니잖아요. 몇십 몇백명이 손을 뻗고 있잖아요. 그러니까 그 외국인이 네 손만 잡아줄 수가 없다며 다른 사람들의 손도 잡아줘야 한다면서 정말 미안하다고….','생존자 이주현 씨'],
+    ['…앞으로 어떻게 되는지 물어봐도 누구 하나 피드백해주는 사람도 없고, 경찰관도 소방관도 119구급대원도 전부 붙잡고 물어봤지만 다 모른대요. (…) 참다못해 한 경찰관에게 따지듯 물어보니까 신원 확인이 안 됐기 때문에 체육관에 들어갈 수 없다, 주민센터(한남동주민센터)로 가서 신고부터 하라고 하더라고요.','고 이주영 씨 오빠 이진우 씨'],
+    ['…그렇게 돌고 돌다 새벽 2시 반이 넘어 서울대학교병원에서 동생을 찾았어요. 엄마가 왠지 서울대병원에 있을 것 같다고 해서 그리로 향했어요. 도착해서 병원에서 나오는 경찰한테 동생 이름이랑 주민등록번호를 대며 물어보니까 여기 있다는 거예요. (…) 두시간 후에야 저희가 동생을 찾은 거죠. 동생은 그때까지 계속 응급실에 있었어요. 그리고 영안실로, 장례식장으로….','고 김유나 씨의 언니 김유진 씨'],
+    ['…나중에 의현이 구급일지를 받아봤어요. 신원 미상, 이름도 없이 의현이를 \'다-28\'이라고 명명한 구급일지에는 의현이를 원효로다목적체육관에서 동국대병원으로 옮긴 구급대원들의 최초 접촉시간이 참사 다음 날인 10월 30일 새벽 6시 30분경, 그때 의현이 체온이 34.0도라고 적혀 있었어요. 체온이 34도가 되려면 세시간 전에 사망했어야 한다고 하더라고요. 구급일지상 의현이 사망 추정시각은 \'10월 29일 오후 10시 15분 전후\'예요. 그치만 그전 참사가 발생한 시각일 뿐이지 실제 의현이가 사망한 시각이 아니잖아요. 다음 날 새벽 6시에 체온이 34도였으면 의현이가 30일 새벽까지는 살아 있었을 수 있는 거잖아요. 그렇게 생각하니까 너무 속상해서 많이 울었어요.','고 김의현 씨 누나 김혜인 씨'],
+    ['…그냥 처음부터 끝까지, 지금까지 아무것도 이해되는 건 없어요. (…) 다들 병원에 좀 다녀오라고 할 정도로 정신이 없는 상태였는데 누가 "누나분 되시죠? 이거 하나 서명만 해주세요"하는 거예요. (…) 문서를 제대로 읽어보지를 못해서 사진을 찍어놓고 장례 다 치른 후에 봤어요. 장례지원금, 그거 때문에 그 와중에 서명을 하라 그런 거였더라고요.','고 양희준 씨의 누나 양진아 씨'],
+   ]}
+ }
+};
+
+
+const PEOPLE = {};
+['s','w','i'].forEach(k=>{
+  const first = {name: BASE[k].who.match(/<b>(.*?)<\/b>/)[1], who: BASE[k].who, qa: BASE[k].qa, virtual:false};
+  PEOPLE[k] = [first].concat(EXTRA[k]);
+});
+const parseRef = r => { const [p,q]=r.split(':'); return {p:'abc'.indexOf(p), q}; };
+
+/* 이미지 목록 — f: img 폴더 안 파일명, ref: 연결될 인터뷰이(a/b/c):질문 */
+const IMAGES = [{"k":"s","f":"sp00.jpg","w":1000,"h":643,"ref":"a:q1"},{"k":"s","f":"sp01.jpg","w":697,"h":393,"ref":"a:q1"},{"k":"s","f":"sp02.jpg","w":1800,"h":1072,"ref":"a:q5"},{"k":"s","f":"sp03.jpg","w":1800,"h":1072,"ref":"a:q5f"},{"k":"s","f":"sp04.jpg","w":1800,"h":605,"ref":"c:q5"},{"k":"s","f":"sp05.jpg","w":1800,"h":1072,"ref":"b:q3"},{"k":"s","f":"sp06.jpg","w":1800,"h":1072,"ref":"a:q6f"},{"k":"s","f":"sp07.jpg","w":1800,"h":450,"ref":"b:q6f"},{"k":"s","f":"sp08.jpg","w":564,"h":786,"ref":"b:q2"},{"k":"s","f":"sp09.jpg","w":1800,"h":686,"ref":"c:q5"},{"k":"s","f":"sp10.jpg","w":1800,"h":686,"ref":"a:q3"},{"k":"s","f":"sp11.jpg","w":1800,"h":1318,"ref":"a:q3f"},{"k":"s","f":"sp12.jpg","w":626,"h":785,"ref":"a:q4"},{"k":"s","f":"sp13.jpg","w":640,"h":480,"ref":"b:q5"},{"k":"s","f":"sp14.jpg","w":580,"h":386,"ref":"c:q7f"},{"k":"s","f":"sp15.jpg","w":1019,"h":938,"ref":"c:q2"},{"k":"s","f":"sp16.jpg","w":1440,"h":1800,"ref":"c:q2f"},{"k":"s","f":"sp17.jpg","w":1200,"h":1800,"ref":"c:q6"},{"k":"s","f":"sp18.jpg","w":1800,"h":1200,"ref":"a:q2"},{"k":"s","f":"sp20.jpg","w":1800,"h":1200,"ref":"b:last"},{"k":"s","f":"sp21.jpg","w":1703,"h":1800,"ref":"b:q8"},{"k":"s","f":"sp22.jpg","w":963,"h":1056,"ref":"b:q5"},{"k":"s","f":"sp23.jpg","w":963,"h":1056,"ref":"c:q8"},{"k":"s","f":"sp24.jpg","w":1412,"h":1137,"ref":"a:q4"},{"k":"s","f":"sp25.jpg","w":1800,"h":1496,"ref":"b:q6"},{"k":"s","f":"sp26.jpg","w":1800,"h":1496,"ref":"c:last"},{"k":"s","f":"sp27.jpg","w":1536,"h":1024,"ref":"a:q8f"},{"k":"s","f":"sp28.jpg","w":1536,"h":1024,"ref":"b:q8"},{"k":"s","f":"sp29.jpg","w":1774,"h":887,"ref":"c:q6"},{"k":"s","f":"sp30.jpg","w":1800,"h":1210,"ref":"a:q7"},{"k":"s","f":"sp31.jpg","w":1154,"h":1536,"ref":"c:q7f"},{"k":"s","f":"sp32.jpg","w":1360,"h":1532,"ref":"a:q7"},{"k":"s","f":"sp33.jpg","w":1200,"h":1800,"ref":"a:q3f"},{"k":"w","f":"sw00.jpg","w":1800,"h":771,"ref":"a:q3f"},{"k":"w","f":"sw01.jpg","w":1800,"h":982,"ref":"b:q3"},{"k":"w","f":"sw02.jpg","w":1800,"h":1207,"ref":"a:q8f"},{"k":"w","f":"sw03.jpg","w":794,"h":1122,"ref":"b:q8"},{"k":"w","f":"sw04.jpg","w":1800,"h":920,"ref":"a:q8"},{"k":"w","f":"sw05.jpg","w":1800,"h":1384,"ref":"a:q8"},{"k":"w","f":"sw06.jpg","w":1800,"h":1384,"ref":"c:q8"},{"k":"w","f":"sw07.jpg","w":800,"h":450,"ref":"a:last"},{"k":"w","f":"sw08.jpg","w":1800,"h":1051,"ref":"b:q8"},{"k":"w","f":"sw09.jpg","w":1800,"h":1183,"ref":"a:q5f"},{"k":"w","f":"sw10.jpg","w":1800,"h":1115,"ref":"c:q3"},{"k":"w","f":"sw11.jpg","w":1800,"h":1021,"ref":"c:q2"},{"k":"w","f":"sw12.jpg","w":800,"h":450,"ref":"a:q1"},{"k":"w","f":"sw13.jpg","w":1800,"h":1101,"ref":"c:q3f"},{"k":"w","f":"sw14.jpg","w":1200,"h":1800,"ref":"c:q6f"},{"k":"w","f":"sw15.jpg","w":1600,"h":1066,"ref":"a:q5"},{"k":"w","f":"sw16.jpg","w":1600,"h":1066,"ref":"c:q2"},{"k":"w","f":"sw17.jpg","w":1800,"h":1788,"ref":"a:q4"},{"k":"w","f":"sw18.jpg","w":1800,"h":859,"ref":"a:q6"},{"k":"w","f":"sw19.jpg","w":1800,"h":1200,"ref":"a:q3"},{"k":"w","f":"sw20.jpg","w":1800,"h":1267,"ref":"c:last"},{"k":"w","f":"sw21.jpg","w":1800,"h":1130,"ref":"b:q3"},{"k":"w","f":"sw22.jpg","w":1800,"h":1112,"ref":"a:q5"},{"k":"w","f":"sw23.jpg","w":1800,"h":1267,"ref":"a:q3"},{"k":"w","f":"sw24.jpg","w":1200,"h":1800,"ref":"a:q5f"},{"k":"w","f":"sw25.jpg","w":1800,"h":1034,"ref":"b:q2"},{"k":"w","f":"sw26.jpg","w":1536,"h":1024,"ref":"a:q7"},{"k":"w","f":"sw27.jpg","w":1800,"h":1271,"ref":"b:q1"},{"k":"w","f":"sw28.jpg","w":1388,"h":1800,"ref":"b:q2f"},{"k":"w","f":"sw29.jpg","w":1200,"h":1800,"ref":"b:q6"},{"k":"w","f":"sw30.jpg","w":1800,"h":1227,"ref":"a:q5"},{"k":"w","f":"sw31.jpg","w":1421,"h":1800,"ref":"c:q6"},{"k":"w","f":"sw32.jpg","w":1200,"h":1800,"ref":"b:last"},{"k":"w","f":"sw33.jpg","w":1781,"h":1800,"ref":"b:q6f"},{"k":"w","f":"sw34.jpg","w":1800,"h":1269,"ref":"a:q3f"},{"k":"w","f":"sw35.jpg","w":1800,"h":684,"ref":"c:q8"},{"k":"i","f":"it00.jpg","w":1800,"h":1197,"ref":"a:q4"},{"k":"i","f":"it01.jpg","w":1800,"h":1187,"ref":"a:q2"},{"k":"i","f":"it02.jpg","w":998,"h":1800,"ref":"a:q6"},{"k":"i","f":"it03.jpg","w":987,"h":1800,"ref":"c:q6"},{"k":"i","f":"it04.jpg","w":1800,"h":1200,"ref":"b:q2"},{"k":"i","f":"it05.jpg","w":1800,"h":1201,"ref":"b:q2f"},{"k":"i","f":"it06.jpg","w":1800,"h":1200,"ref":"a:q7f"},{"k":"i","f":"it07.jpg","w":1200,"h":564,"ref":"c:q7"},{"k":"i","f":"it08.jpg","w":1800,"h":977,"ref":"a:q7"},{"k":"i","f":"it09.jpg","w":547,"h":1800,"ref":"a:q6f"},{"k":"i","f":"it10.jpg","w":547,"h":1800,"ref":"c:q5"},{"k":"i","f":"it11.jpg","w":720,"h":1280,"ref":"b:q8"},{"k":"i","f":"it12.jpg","w":1800,"h":1217,"ref":"a:q3"},{"k":"i","f":"it13.jpg","w":1800,"h":900,"ref":"c:q1"},{"k":"i","f":"it14.jpg","w":1800,"h":1199,"ref":"a:q5f"},{"k":"i","f":"it15.jpg","w":1251,"h":1800,"ref":"c:q3f"},{"k":"i","f":"it16.jpg","w":1120,"h":746,"ref":"b:last"},{"k":"i","f":"it17.jpg","w":1120,"h":746,"ref":"c:q3"},{"k":"i","f":"it18.jpg","w":720,"h":961,"ref":"b:q3"},{"k":"i","f":"it19.jpg","w":1120,"h":746,"ref":"a:q3f"},{"k":"i","f":"it20.jpg","w":1120,"h":746,"ref":"a:q2f"},{"k":"i","f":"it21.jpg","w":934,"h":536,"ref":"a:q5f"},{"k":"i","f":"it22.jpg","w":1800,"h":1200,"ref":"a:q3"},{"k":"i","f":"it23.jpg","w":1800,"h":900,"ref":"c:q2f"},{"k":"i","f":"it24.jpg","w":1800,"h":900,"ref":"c:last"},{"k":"i","f":"it25.jpg","w":1800,"h":508,"ref":"b:q6"},{"k":"i","f":"it26.jpg","w":1800,"h":1201,"ref":"c:q3"},{"k":"i","f":"it27.jpg","w":1280,"h":720,"ref":"b:q8"},{"k":"i","f":"it28.jpg","w":1308,"h":1800,"ref":"c:q7"},{"k":"i","f":"it29.jpg","w":929,"h":559,"ref":"a:q8"},{"k":"i","f":"it30.jpg","w":929,"h":559,"ref":"a:last"},{"k":"i","f":"it31.jpg","w":1800,"h":900,"ref":"b:q5"},{"k":"i","f":"it32.jpg","w":1800,"h":1439,"ref":"c:q2"},{"k":"i","f":"it33.jpg","w":1800,"h":900,"ref":"c:q8"},{"k":"i","f":"it34.jpg","w":1532,"h":1006,"ref":"a:q6"}];
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+const ARC = {cx:0, cy:6400, r:6500};
+const ANCHOR_ANG = {s:-121, w:-90, i:-59};             // degrees on the arc
+const anchor = k => { const a = ANCHOR_ANG[k]*Math.PI/180; return {x:ARC.cx+ARC.r*Math.cos(a), y:ARC.cy+ARC.r*Math.sin(a)}; };
+
+let seed = 29; const rnd = () => (seed = (seed*16807)%2147483647)/2147483647;
+
+const world = document.getElementById('world');
+const stage = document.getElementById('stage');
+const cards = [];
+
+function makeCard(item){
+  const el = document.createElement('div');
+  el.className = 'card' + (item.type==='quote'?' quote':'');
+  const inner = document.createElement('div'); inner.className='inner';
+  if(item.type==='img'){
+    const img = new Image(); img.src = 'img/t/'+item.f;   // 캔버스엔 가벼운 썸네일(img/t), 패널엔 원본(img) img.alt = item.label; img.loading='eager'; img.decoding='async';
+    inner.appendChild(img);
+  } else {
+    const p = document.createElement('p'); p.textContent = item.text; inner.appendChild(p);
+  }
+  const cap = document.createElement('div'); cap.className='cap';
+  cap.innerHTML = '<i></i>' + item.label;
+  inner.appendChild(cap); el.appendChild(inner);
+  el.style.width = item.w+'px';
+  world.appendChild(el);
+  item.el = el; item.inner = inner;
+  item.ox=0; item.oy=0; item.tx=0; item.ty=0; item.rx=0; item.ry=0; item.s=1;
+  return item;
+}
+
+function build(){
+  // items
+  const items=[];
+  IMAGES.forEach(m=>{
+    const ar = m.w/m.h;
+    const area = 46000 + rnd()*56000;
+    let w = Math.sqrt(area*ar); w = Math.max(170, Math.min(w, 460));
+    const ref = parseRef(m.ref||IMAGE_Q[m.f]||'a:q1');
+    items.push({type:'img', k:m.k, f:m.f, p:ref.p, q:ref.q, w:Math.round(w), h:Math.round(w/ar)+32,
+      label:`${EVENTS[m.k].no} ${EVENTS[m.k].date} · ${PEOPLE[m.k][ref.p].name}`});
+  });
+  QUOTES.forEach(([k,text,r])=>{
+    const ref=parseRef(r);
+    items.push({type:'quote',k,text,p:ref.p,q:ref.q,w:230+Math.round(rnd()*50),h:130,label:`${EVENTS[k].no} INTERVIEW · ${PEOPLE[k][ref.p].name}`});
+  });
+  // place per cluster with simple collision rejection
+  ['s','w','i'].forEach(k=>{
+    const A = anchor(k), list = items.filter(x=>x.k===k);
+    list.sort(()=>rnd()-.5);
+    const placed=[];
+    list.forEach((it,idx)=>{
+      let best=null;
+      for(let t=0;t<400;t++){
+        const R = 170 + Math.sqrt(t+idx*6)*80 + rnd()*50;
+        const ang = rnd()*Math.PI*2;
+        const x = A.x + Math.cos(ang)*R*1.25 - it.w/2;
+        const y = A.y + 60 + Math.sin(ang)*R*0.85 - it.h/2;
+        const pad=34;
+        const hit = placed.some(p=> x < p.x+p.w+pad && x+it.w+pad > p.x && y < p.y+p.h+pad && y+it.h+pad > p.y)
+                 || (Math.hypot(x+it.w/2-A.x, y+it.h/2-A.y) < 200); // keep anchor label clear
+        if(!hit){best={x,y};break;}
+      }
+      if(!best) best={x:A.x+rnd()*1600-800,y:A.y+rnd()*1200-600};
+      it.x=best.x; it.y=best.y; placed.push(it);
+    });
+  });
+  items.forEach(it=>{ it.depth = .35 + rnd()*.9; makeCard(it); it.el.style.left=it.x+'px'; it.el.style.top=it.y+'px'; cards.push(it); });
+  drawArc();
+}
+
+function drawArc(){
+  const svg = document.getElementById('arc');
+  const a0=-132*Math.PI/180, a1=-48*Math.PI/180;
+  const P = a=>[ARC.cx+ARC.r*Math.cos(a), ARC.cy+ARC.r*Math.sin(a)];
+  const [x0,y0]=P(a0),[x1,y1]=P(a1);
+  const minx=x0-200, miny=ARC.cy-ARC.r-200, w=x1-x0+400, h=Math.max(y0,y1)-miny+200;
+  svg.setAttribute('width',w); svg.setAttribute('height',h);
+  svg.style.left=minx+'px'; svg.style.top=miny+'px';
+  svg.setAttribute('viewBox',`${minx} ${miny} ${w} ${h}`);
+  let s = `<path d="M${x0},${y0} A${ARC.r},${ARC.r} 0 0 1 ${x1},${y1}" fill="none" stroke="var(--arc)" stroke-width="1.2"/>`;
+  // tick marks — years along the arc
+  for(let yr=1990; yr<=2026; yr++){
+    const t=(yr-1990)/(2026-1990), a=a0+(a1-a0)*(.08+t*.84);
+    const [x,y]=P(a), nx=Math.cos(a), ny=Math.sin(a), L = yr%5===0?14:6;
+    s+=`<line x1="${x}" y1="${y}" x2="${x+nx*L}" y2="${y+ny*L}" stroke="var(--arc)" stroke-width="1"/>`;
+  }
+  ['s','w','i'].forEach(k=>{
+    const A=anchor(k);
+    s+=`<circle cx="${A.x}" cy="${A.y}" r="7" fill="#121212"/><circle cx="${A.x}" cy="${A.y}" r="16" fill="none" stroke="#121212" stroke-width="1"/>`;
+    const lab=document.createElement('div'); lab.className='node-label';
+    lab.style.left=(A.x+12)+'px'; lab.style.top=(A.y)+'px';
+    lab.innerHTML=`${EVENTS[k].no} — ${EVENTS[k].date} · ${EVENTS[k].count}명<b>${EVENTS[k].name}</b>`;
+    world.appendChild(lab);
+  });
+  svg.innerHTML=s;
+}
+
+/* =========================================================
+   CAMERA
+   ========================================================= */
+const cam = {x:0,y:0,z:.5}, tgt = {x:0,y:0,z:.5};
+const ZMIN=.18, ZMAX=2.4;
+let vw=innerWidth, vh=innerHeight;
+const mouse={x:vw/2,y:vh/2,in:false};
+addEventListener('resize',()=>{vw=innerWidth;vh=innerHeight;});
+
+function bbox(list){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  list.forEach(c=>{x0=Math.min(x0,c.x);y0=Math.min(y0,c.y);x1=Math.max(x1,c.x+c.w);y1=Math.max(y1,c.y+c.h);});
+  return {x0,y0,x1,y1};
+}
+function fitTo(list, opts={}){
+  const b=bbox(list);
+  const leftPad = document.getElementById('intro').classList.contains('collapsed')?60:500;
+  const availW = vw - leftPad - 80 - (panelOpen?panelW():0), availH = vh - 160;
+  const z = Math.max(ZMIN, Math.min(opts.max||1.1, availW/(b.x1-b.x0), availH/(b.y1-b.y0)));
+  tgt.z=z;
+  // center of available region in screen space
+  const sx = leftPad + availW/2, sy = 80 + availH/2;
+  tgt.x = (b.x0+b.x1)/2 - (sx - vw/2)/z;
+  tgt.y = (b.y0+b.y1)/2 - (sy - vh/2)/z;
+}
+const toScreen = (wx,wy)=>({x:(wx-cam.x)*cam.z+vw/2, y:(wy-cam.y)*cam.z+vh/2});
+const toWorld  = (sx,sy)=>({x:(sx-vw/2)/cam.z+cam.x, y:(sy-vh/2)/cam.z+cam.y});
+
+function zoomAt(f, sx, sy){
+  const nz = Math.max(ZMIN, Math.min(ZMAX, tgt.z*f));
+  // keep point under cursor fixed (relative to target camera)
+  const wx=(sx-vw/2)/tgt.z+tgt.x, wy=(sy-vh/2)/tgt.z+tgt.y;
+  tgt.x = wx-(sx-vw/2)/nz; tgt.y = wy-(sy-vh/2)/nz; tgt.z=nz;
+}
+
+/* drag / click */
+let drag=null;
+stage.addEventListener('pointerdown',e=>{
+  if(e.button!==0) return;
+  drag={sx:e.clientX,sy:e.clientY,cx:tgt.x,cy:tgt.y,moved:false,card:e.target.closest('.card')};
+  stage.setPointerCapture(e.pointerId);
+  poke();
+});
+stage.addEventListener('pointermove',e=>{
+  mouse.x=e.clientX; mouse.y=e.clientY; mouse.in=true; poke();
+  if(!drag) return;
+  const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
+  if(!drag.moved && Math.hypot(dx,dy)>5){drag.moved=true; stage.classList.add('drag');}
+  if(drag.moved){ tgt.x=drag.cx-dx/tgt.z; tgt.y=drag.cy-dy/tgt.z; cam.x=tgt.x; cam.y=tgt.y; }
+});
+stage.addEventListener('pointerup',e=>{
+  if(drag && !drag.moved && drag.card){
+    const c=cards.find(c=>c.el===drag.card); if(c) openCard(c);
+  }
+  drag=null; stage.classList.remove('drag');
+});
+stage.addEventListener('pointerleave',()=>{mouse.in=false;});
+stage.addEventListener('wheel',e=>{
+  e.preventDefault(); poke();
+  const d = e.deltaMode===1? e.deltaY*16 : e.deltaY;
+  zoomAt(Math.exp(-d*(e.ctrlKey?0.012:0.0016)), e.clientX, e.clientY);
+},{passive:false});
+
+/* zoom ui */
+const zt=document.getElementById('zoomTrack'), zk=document.getElementById('zoomKnob');
+// 왼쪽 = 축소, 오른쪽 = 확대
+const z2t = z => (Math.log(z)-Math.log(ZMIN))/(Math.log(ZMAX)-Math.log(ZMIN));
+const t2z = t => Math.exp(Math.log(ZMIN)+t*(Math.log(ZMAX)-Math.log(ZMIN)));
+let zDrag=false;
+const setFromTrack = e=>{const r=zt.getBoundingClientRect(); const t=Math.max(0,Math.min(1,(e.clientX-r.left-12)/(r.width-24))); zoomAt(t2z(t)/tgt.z, vw/2, vh/2);};
+zt.addEventListener('pointerdown',e=>{zDrag=true;zt.setPointerCapture(e.pointerId);setFromTrack(e);});
+zt.addEventListener('pointermove',e=>{if(zDrag)setFromTrack(e);});
+zt.addEventListener('pointerup',()=>zDrag=false);
+zt.addEventListener('pointercancel',()=>zDrag=false);
+document.getElementById('zIn').onclick=()=>zoomAt(1.35,vw/2,vh/2);
+document.getElementById('zOut').onclick=()=>zoomAt(1/1.35,vw/2,vh/2);
+document.getElementById('zFull').onclick=()=>toggleFull();
+function toggleFull(){ try{ if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }catch(_){} }
+
+/* =========================================================
+   RENDER LOOP — camera easing + reactive cards
+   ========================================================= */
+let hovered=null;
+function frame(){
+  const k=.12;
+  cam.x+=(tgt.x-cam.x)*k; cam.y+=(tgt.y-cam.y)*k; cam.z+=(tgt.z-cam.z)*k;
+  // idle drift (kiosk attract)
+  if(idle){ tgt.x += Math.cos(performance.now()/9000)*.35/cam.z; tgt.y += Math.sin(performance.now()/11000)*.25/cam.z; }
+  const z=cam.z;
+  world.style.transform=`translate(${vw/2-cam.x*z}px,${vh/2-cam.y*z}px) scale(${z})`;
+  const g=40*z; stage.style.backgroundSize=`${g}px ${g}px`;
+  stage.style.backgroundPosition=`${(vw/2-cam.x*z)%g}px ${(vh/2-cam.y*z)%g}px`;
+
+  // hit test for hover (screen space)
+  let hit=null;
+  if(mouse.in && !drag?.moved){
+    for(let i=cards.length-1;i>=0;i--){
+      const c=cards[i]; if(c.el.classList.contains('dim')) continue;
+      const p=toScreen(c.x,c.y);
+      const sx=p.x+c.ox*1, sy=p.y+c.oy*1, w=c.w*z*c.s, h=c.h*z*c.s;
+      if(mouse.x>=sx && mouse.x<=sx+w && mouse.y>=sy && mouse.y<=sy+h){hit=c;break;}
+    }
+  }
+  if(hit!==hovered){
+    hovered?.el.classList.remove('hover');
+    hit?.el.classList.add('hover');
+    hovered=hit;
+    document.body.classList.toggle('hovering',!!hit);
+    stage.style.cursor = hit? 'pointer' : '';
+  }
+
+  const mx=(mouse.x-vw/2)/(vw/2), my=(mouse.y-vh/2)/(vh/2);
+  const R=280;
+  for(const c of cards){
+    const p=toScreen(c.x+c.w/2,c.y+c.h/2);
+    // parallax: deeper cards move more against the cursor
+    let tx = mouse.in? -mx*c.depth*26 : 0, ty = mouse.in? -my*c.depth*20 : 0;
+    // soft repel around cursor (not for hovered card)
+    if(mouse.in && c!==hovered){
+      const dx=p.x-mouse.x, dy=p.y-mouse.y, d=Math.hypot(dx,dy);
+      if(d<R && d>0.001){ const f=Math.pow(1-d/R,2)*46; tx+=dx/d*f; ty+=dy/d*f; }
+    }
+    // hovered: lift + tilt toward cursor
+    let rx=0, ry=0, s=1;
+    if(c===hovered){
+      s=1.07;
+      const lx=(mouse.x-p.x)/(c.w*z/2), ly=(mouse.y-p.y)/(c.h*z/2);
+      ry=lx*7; rx=-ly*7; tx*=.4; ty*=.4;
+    }
+    c.ox+=(tx-c.ox)*.09; c.oy+=(ty-c.oy)*.09;
+    c.rx+=(rx-c.rx)*.12; c.ry+=(ry-c.ry)*.12; c.s+=(s-c.s)*.14;
+    c.el.style.transform=`translate(${c.ox/z}px,${c.oy/z}px)`;
+    c.inner.style.transform=`perspective(700px) rotateX(${c.rx}deg) rotateY(${c.ry}deg) scale(${c.s})`;
+    c.el.style.zIndex = c===hovered? 50 : (c.active?40:Math.round(c.depth*10));
+  }
+  zk.style.left = (12 + z2t(z)*(zt.clientWidth-24))+'px';
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================
+   FILTER
+   ========================================================= */
+let filterKey='all';
+const fBox=document.getElementById('filter'), fList=document.getElementById('filterList');
+function renderFilter(){
+  const opts=[['all','전체', cards.length]].concat(['s','w','i'].map(k=>[k,`${EVENTS[k].no}  ${EVENTS[k].name}`, cards.filter(c=>c.k===k).length]));
+  fList.innerHTML=opts.map(([k,l,n])=>`<button data-k="${k}" class="${k===filterKey?'on':''}">${l}<em>${String(n).padStart(2,'0')}</em></button>`).join('');
+  const cur=opts.find(o=>o[0]===filterKey);
+  document.getElementById('filterLabel').textContent = filterKey==='all'?'전체 — 세 개의 사건':cur[1];
+  document.getElementById('filterCount').textContent = String(cur[2]).padStart(2,'0')+' FRAGMENTS';
+}
+document.getElementById('filterBtn').onclick=e=>{e.stopPropagation();fBox.classList.toggle('open');menu.classList.remove('open');linksBtn.classList.remove('on');};
+fList.onclick=e=>{const b=e.target.closest('button'); if(!b) return; setFilter(b.dataset.k); fBox.classList.remove('open');};
+function setFilter(k){
+  filterKey=k;
+  cards.forEach(c=>c.el.classList.toggle('dim', k!=='all' && c.k!==k));
+  renderFilter(); updateStatus();
+  if(!panelOpen){ if(k==='all') startView(); else fitTo(cards.filter(c=>c.k===k), {max:1.1}); }
+}
+
+/* =========================================================
+   TOP-RIGHT MENU
+   ========================================================= */
+const menu=document.getElementById('menu'), linksBtn=document.getElementById('linksBtn');
+document.getElementById('links').innerHTML=['s','w','i'].map(k=>{
+  const E=EVENTS[k];
+  return `<div class="col"><h3>${E.no} ${E.name}</h3><div class="d">${E.date} — ${E.en}</div>`+
+    E.links.map(([t,u,d])=>`<a href="${u}" target="_blank" rel="noopener"><span style="font-family:inherit;font-size:inherit">${t}<small>${d||''}</small></span><span>↗</span></a>`).join('')+`</div>`;
+}).join('');
+linksBtn.onclick=e=>{e.stopPropagation(); menu.classList.toggle('open'); linksBtn.classList.toggle('on'); fBox.classList.remove('open');};
+document.getElementById('fitBtn').onclick=()=>{ if(panelOpen) closePanel(); setFilter('all'); };
+document.addEventListener('click',e=>{ if(!menu.contains(e.target)){menu.classList.remove('open');linksBtn.classList.remove('on');} if(!fBox.contains(e.target)) fBox.classList.remove('open'); });
+
+const intro=document.getElementById('intro');
+document.getElementById('introToggle').onclick=()=>{intro.classList.toggle('collapsed'); document.getElementById('introToggle').textContent=intro.classList.contains('collapsed')?'+':'–';};
+
+/* =========================================================
+   INTERVIEW PANEL
+   ========================================================= */
+const panel=document.getElementById('panel'), pScroll=document.getElementById('pScroll');
+let panelOpen=false, current=null, tab='p0';
+const panelW=()=>panel.getBoundingClientRect().width;
+const esc=s=>s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+function qaHTML(k,p){
+  const P=PEOPLE[k][p];
+  return P.qa.map((x,n)=>{
+    const num = x.id==='last'?'LAST':'Q'+String(n+1).padStart(2,'0');
+    let h=`<article class="qa" id="${k}-${p}-${x.id}"><div class="q"><span>${num}</span>${esc(x.q)}</div><div class="a">${x.a.map(t=>`<p>${esc(t)}</p>`).join('')}</div>`;
+    if(x.f) h+=`<div class="f" id="${k}-${p}-${x.f.id}"><div class="fq">${esc(x.f.q)}</div><div class="a">${x.f.a.map(t=>`<p>${esc(t)}</p>`).join('')}</div></div>`;
+    return h+`</article>`;
+  }).join('');
+}
+function onlineHTML(k){
+  const O=ONLINE[k];
+  return `<div class="online"><div class="src">${esc(O.note)}</div>`+O.items.map(it=>{
+    if(it.t) return `<blockquote>${esc(it.t)}<cite>— ${esc(it.who)} 인터뷰 중</cite></blockquote>`;
+    return `<div class="item"><div class="qq">“${esc(it.q)}”</div><p class="dd">${esc(it.d)}</p>`+
+      `<div class="ss">— ${esc(it.who)}<br>출처: ${esc(it.src)}, 「${esc(it.title)}」, ${esc(it.date)} · <a href="${it.url}" target="_blank" rel="noopener">원문 보기 ↗</a></div></div>`;
+  }).join('')+`</div>`;
+}
+function whoHTML(P){ return P.who + (P.virtual && SHOW_VIRTUAL_MARK ? '<span class="vmark">재구성 인터뷰</span>' : ''); }
+function renderPanel(c){
+  const E=EVENTS[c.k], list=PEOPLE[c.k];
+  const pIdx = tab==='online' ? c.p : +tab.slice(1);
+  const P=list[pIdx];
+  document.getElementById('pTag').innerHTML=`<span>${E.no}</span><span>${E.date}</span><span>${E.en}</span>`;
+  const fig = c.type==='img'
+    ? `<div class="fig"><img src="img/${c.f}" alt=""><div class="cap">${c.label}</div></div>`
+    : `<div class="fig"><p style="font-family:var(--mono);font-size:13px;line-height:1.6">${esc(c.text)}</p><div class="cap">${c.label}</div></div>`;
+  const head = tab==='online'
+    ? `<p class="who"><b>온라인 증언</b> — 생존자·유가족·현장에 있던 사람들이 공개적으로 남긴 말</p>`
+    : `<p class="who">${whoHTML(P)}</p>`;
+  pScroll.innerHTML =
+    `<div class="pTop"><div class="t"><div class="num">${E.no} — ${E.count}명</div><h2>${E.name}</h2><div class="en">${E.en}</div>${head}</div>${fig}</div>`+
+    `<div class="tabs">${list.map((x,i)=>`<button data-t="p${i}" class="${tab==='p'+i?'on':''}">${'ABC'[i]} — ${x.name}</button>`).join('')}<button data-t="online" class="${tab==='online'?'on':''}">온라인 증언</button></div>`+
+    `<div id="pBody">${tab==='online'?onlineHTML(c.k):qaHTML(c.k,pIdx)}</div>`+
+    `<div class="pFoot"><h4>관련 사이트 — ${E.name}</h4><div class="ls">${E.links.map(([t,u])=>`<a href="${u}" target="_blank" rel="noopener">${t} ↗</a>`).join('')}</div></div>`;
+  pScroll.querySelector('.tabs').onclick=e=>{const b=e.target.closest('button'); if(!b) return; tab=b.dataset.t; renderPanel(current);
+    if(tab==='p'+current.p) markQ(current,false); else { const t=pScroll.querySelector('.tabs'); pScroll.style.scrollBehavior='auto'; pScroll.scrollTop=t.offsetTop; } };
+}
+function markQ(c, smooth=true){
+  const el=document.getElementById(`${c.k}-${c.p}-${c.q}`); if(!el) return;
+  const block = el.classList.contains('f')? el.closest('.qa') : el;
+  pScroll.querySelectorAll('.qa.mark').forEach(n=>n.classList.remove('mark'));
+  block.classList.add('mark');
+  const top = (el.classList.contains('f')? el.offsetTop - 30 : block.offsetTop) - 46;
+  pScroll.style.scrollBehavior = smooth?'smooth':'auto';
+  pScroll.scrollTop = top;
+}
+function openCard(c){
+  if(current) {current.active=false; current.el.classList.remove('active');}
+  const changedEvent = !current || current.k!==c.k || tab!=='p'+c.p;
+  current=c; c.active=true; c.el.classList.add('active');
+  tab='p'+c.p;
+  renderPanel(c);
+  panel.classList.add('open'); panel.setAttribute('aria-hidden','false');
+  panelOpen=true; document.body.classList.add('panel-open');
+  pScroll.style.scrollBehavior='auto'; pScroll.scrollTop=0;
+  requestAnimationFrame(()=>setTimeout(()=>markQ(c, !changedEvent), changedEvent?380:0));
+  // bring card to the centre of the space left of the panel
+  const free = vw - panelW();
+  const z = Math.max(tgt.z, .75);
+  tgt.z = z;
+  tgt.x = c.x + c.w/2 - (free/2 - vw/2)/z;
+  tgt.y = c.y + c.h/2;
+  updateStatus();
+}
+function closePanel(){
+  panel.classList.remove('open'); panel.setAttribute('aria-hidden','true');
+  panelOpen=false; document.body.classList.remove('panel-open');
+  if(current){current.active=false; current.el.classList.remove('active');}
+  current=null; updateStatus();
+}
+function step(dir){
+  if(!current) return;
+  const list = cards.filter(c=>!c.el.classList.contains('dim')).sort((a,b)=>a.x-b.x);
+  const i = list.indexOf(current);
+  openCard(list[(i+dir+list.length)%list.length]);
+}
+document.getElementById('pClose').onclick=closePanel;
+document.getElementById('pPrev').onclick=()=>step(-1);
+document.getElementById('pNext').onclick=()=>step(1);
+
+addEventListener('keydown',e=>{
+  poke();
+  if(e.key==='Escape') closePanel();
+  else if(e.key==='ArrowRight' && panelOpen) step(1);
+  else if(e.key==='ArrowLeft' && panelOpen) step(-1);
+  else if(e.key==='0') {closePanel(); setFilter('all');}
+  else if(e.key==='1') setFilter('s'); else if(e.key==='2') setFilter('w'); else if(e.key==='3') setFilter('i');
+  else if(e.key==='f'||e.key==='F') toggleFull();
+});
+
+function updateStatus(){
+  const vis=cards.filter(c=>!c.el.classList.contains('dim')).length;
+  document.getElementById('status').innerHTML =
+    `${String(vis).padStart(2,'0')} / ${cards.length} FRAGMENTS — 9 INTERVIEWS<br>`+
+    (current? `READING — ${EVENTS[current.k].no} ${EVENTS[current.k].date}` : `1995 · 2014 · 2022`);
+}
+
+/* =========================================================
+   KIOSK IDLE — 2분 동안 입력이 없으면 처음 화면으로
+   ========================================================= */
+let idle=false, idleTimer=null;
+const IDLE_MS = 120000;
+function poke(){
+  if(idle){ idle=false; }
+  clearTimeout(idleTimer);
+  idleTimer=setTimeout(()=>{ closePanel(); menu.classList.remove('open'); fBox.classList.remove('open'); setFilter('all'); idle=true; }, IDLE_MS);
+}
+
+function startView(){
+  fitTo(cards,{max:1});
+  tgt.z = Math.min(ZMAX, tgt.z*1.45);
+  const A=anchor('w'); tgt.x=A.x+120; tgt.y=A.y+140;
+}
+/* go */
+build(); renderFilter(); updateStatus();
+startView(); cam.x=tgt.x; cam.y=tgt.y; cam.z=tgt.z*.7;
+poke(); requestAnimationFrame(frame);
+setTimeout(()=>document.getElementById('hint').style.opacity=0, 9000);
+</script>
+</body>
+</html>
